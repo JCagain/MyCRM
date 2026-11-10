@@ -1,0 +1,43 @@
+# Keep the repository focused on source, configuration templates and docs.
+/*
+!/.gitignore
+!/README.md
+!/compose.yaml
+!/.env.example
+!/card2vcf/
+!/docs/
+
+# Private source images, contacts, database storage and backups.
+/cards/
+/data/
+/backups/
+**/cards/
+**/data/
+**/backups/
+**/exports/
+.env
+.env.*
+!.env.example
+*.vcf
+*.vcard
+*.csv
+*.sql
+*.sql.*
+*.zip
+*.7z
+*.bak
+*.log
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.heic
+*.pdf
+
+# Installed dependencies, generated output and local tooling state.
+node_modules/
+test-results/
+playwright-report/
+coverage/
+.DS_Store
+Thumbs.db
