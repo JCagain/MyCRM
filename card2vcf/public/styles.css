@@ -38,3 +38,5 @@ button.danger:hover{background:#fff0ed}
 .first-met-fields label:last-child{grid-column:1/-1}
 @media(max-width:1000px){main{grid-template-columns:220px minmax(0,1fr)}}
 @media(max-width:650px){main{display:block;padding:0 10px 10px}.row{gap:5px}.review-actions{gap:6px}}
+
+.row select{max-width:100%;min-width:0}.row[data-language-group]{border-left:3px solid #7586a3}.row-jobs select,.row-socials select{width:100%}

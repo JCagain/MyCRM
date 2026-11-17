@@ -1,3 +1,4 @@
+import {initialize,compatible,clean} from './contact-metadata.mjs';
 import {keys,fieldIdentity,normalizedText} from './fields.mjs';
 export {keys} from './fields.mjs';
 const uuid=()=>crypto.randomUUID();
@@ -26,7 +27,7 @@ function copyRow(key,row){
 }
 function mergeRow(key,rows,row){
  const candidate=copyRow(key,row),identity=fieldIdentity(key,candidate);
- const found=identity===null?null:rows.find(item=>fieldIdentity(key,item)===identity);
+ const found=identity===null?null:rows.find(item=>fieldIdentity(key,item)===identity&&compatible(key,item,candidate));
  if(!found){rows.push(candidate);return;}
  withSources(found,[...sourceIds(found),...sourceIds(candidate)]);
  found.manual=found.manual||candidate.manual;
@@ -43,7 +44,13 @@ function noteParts(p){return p.noteParts?.join('\n\n')===p.notes?p.noteParts:p.n
 function mergeNotes(p,parts){p.noteParts=uniqueText([...noteParts(p),...parts]);p.notes=p.noteParts.join('\n\n');}
 function preserveDisplay(p){if(p.display.trim()&&!p.names.some(row=>normalizedText(row.value)===normalizedText(p.display)))p.names.push({value:p.display.trim(),origin:'manual',edited:true});}
 export function deduplicatePerson(p){
- for(const key of keys)p[key]=deduplicateRows(key,p[key]??[]);
+ initialize(p);
+ const oldPhones=[...p.phones];
+ p.phones=deduplicateRows('phones',p.phones);
+ const phoneIds=new Map(oldPhones.map(old=>[old.id,(p.phones.find(r=>r.id===old.id)||p.phones.find(r=>fieldIdentity('phones',old)!==null&&fieldIdentity('phones',r)===fieldIdentity('phones',old)))?.id]));
+ for(const r of p.socials)if(phoneIds.get(r.phoneId))r.phoneId=phoneIds.get(r.phoneId);
+ for(const key of keys)if(key!=='phones')p[key]=deduplicateRows(key,p[key]??[]);
+ clean(p);
  mergeNotes(p,[]);
  p.nicknames=uniqueText(p.nicknames.split(',').map(value=>value.trim())).join(', ');
  return p;
@@ -80,7 +87,7 @@ export function detach(state,id,cardIds){
  const p=state.find(p=>p.id===id),selected=new Set(cardIds);
  if(!p||!selected.size||selected.size>=p.cards.length||cardIds.some(card=>!p.cards.includes(card)))throw Error('Select some, but not all cards to detach.');
  preserveDisplay(p);deduplicatePerson(p);
- const moved=person(cardIds[0]);moved.cards=[...selected];
+ const moved=person(cardIds[0]);moved.cards=[...selected];const oldPhones=structuredClone(p.phones);
  for(const key of keys){
   const keep=[],take=[];
   for(const row of p[key]){
@@ -90,6 +97,10 @@ export function detach(state,id,cardIds){
   }
   p[key]=keep;moved[key]=take;
  }
+ clean(p,oldPhones);clean(moved,oldPhones,true);
+ const phoneIds=new Map();
+ for(const key of ['jobs','addresses','phones','socials'])for(const row of moved[key]){const id=uuid();if(key==='phones')phoneIds.set(row.id,id);row.id=id;}
+ for(const row of moved.socials)if(row.phoneId)row.phoneId=phoneIds.get(row.phoneId);
  p.cards=p.cards.filter(card=>!selected.has(card));p.display='';p.reviewed=false;p.revision++;p.suggestions=[];state.push(moved);
 }
 export function applyExtraction(p,card,data,convert){
@@ -100,7 +111,7 @@ export function applyExtraction(p,card,data,convert){
   mergeRow(key,p[key],{...item,source:card});
  }
  if(data.notes)mergeNotes(p,data.notes.split(/\n\s*\n/));
- addSimplified(p,convert);p.reviewed=false;p.revision++;
+ deduplicatePerson(p);addSimplified(p,convert);p.reviewed=false;p.revision++;
 }
 export function addSimplified(p,convert){
  p.names=deduplicateRows('names',p.names);

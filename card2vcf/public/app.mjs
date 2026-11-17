@@ -1,3 +1,6 @@
+import {initialize,statuses,link,unlink,setStatus,primary,associate,remove,socialValue} from './contact-metadata.mjs';
+import {socialService} from './fields.mjs';
+const rowSelection=new Map();
 import {History,person,keys,combine,detach,applyExtraction,addSimplified,displayName,batch,signature} from './domain.mjs';
 import {vcard} from './vcard.mjs';
 import {fields as definitions} from './fields.mjs';
@@ -56,19 +59,26 @@ function renderImages(){const pane=$('#images'),p=current();pane.replaceChildren
 const fieldNames={wechats:'WeChat'};
 function renderEditor(){const pane=$('#editor'),p=current();pane.replaceChildren();if(!p)return;const heading=el('div',undefined,{className:'editor-heading'});heading.append(el('h2','Contact review'),reviewActions(p));pane.append(heading);
  field(pane,'Main name (printed names, separated by spaces)',displayName(p),v=>{p.display=v;contentChange(p);});
- for(const k of keys){
+ for(const view of [...keys.filter(k=>k!=='socials'),'linkedin','whatsapp','socials']){
+  const service=['linkedin','whatsapp'].includes(view)?view:null,k=service?'socials':view;
+  const selectedRows=rowSelection.get(p.id+':'+k)??new Set();rowSelection.set(p.id+':'+k,selectedRows);
   const section=el('div',undefined,{className:'field-section'}),heading=el('div',undefined,{className:'field-heading'});
-  heading.append(el('h3',fieldNames[k]??k[0].toUpperCase()+k.slice(1)),button('Add '+(fieldNames[k]??k),()=>change(()=>{p[k].push({...Object.fromEntries(definitions[k].map(f=>[f,''])),origin:'manual',edited:true});contentChange(p);})));
+  heading.append(el('h3',service==='linkedin'?'LinkedIn':service==='whatsapp'?'WhatsApp':fieldNames[k]??k[0].toUpperCase()+k.slice(1)),button('Add '+(service==='linkedin'?'LinkedIn':service==='whatsapp'?'WhatsApp':fieldNames[k]??k),()=>change(()=>{p[k].push({...Object.fromEntries(definitions[k].map(f=>[f,''])),origin:'manual',edited:true,...(service?{label:service}:{})});initialize(p);contentChange(p);})));
   section.append(heading);
+  if(['jobs','addresses'].includes(k))heading.append(button('Link selected language variants',()=>{try{const ids=[...selectedRows];const probe=structuredClone(p);link(probe,k,ids);change(()=>link(p,k,ids));selectedRows.clear();}catch(e){status(e.message);}}));
   if(k==='wechats')section.append(el('p','WeChat IDs are preserved in Monica Notes on import.',{className:'hint'}));
   p[k].forEach((r,i)=>{
+   if(k==='socials'&&(service?socialService(r.label)!==service:['linkedin','whatsapp'].includes(socialService(r.label))))return;
    const row=el('div',undefined,{className:'row row-'+k});
    if(k==='names')row.append(el('small',r.origin==='generated'?'Generated simplified · editable':'Printed / manually entered'));
+   if(['jobs','addresses'].includes(k)){const label=el('label','Select variant'),check=el('input',undefined,{type:'checkbox',checked:selectedRows.has(r.id)});check.onchange=()=>check.checked?selectedRows.add(r.id):selectedRows.delete(r.id);label.prepend(check);row.append(label);if(r.alternativeGroupId){row.dataset.languageGroup=r.alternativeGroupId;row.append(el('small','Linked language variant'),button('Unlink language variants',()=>change(()=>unlink(p,k,r.id))));}}
+   if(k==='jobs'){const label=el('label','Job status'),select=el('select');for(const value of statuses)select.append(el('option',value[0].toUpperCase()+value.slice(1),{value,selected:value===r.status}));select.onchange=()=>change(()=>setStatus(p,r.id,select.value));label.append(select);row.append(label);}
+   if(service==='whatsapp'){const label=el('label','Number source'),select=el('select');select.append(el('option','Independent number',{value:''}));for(const phone of p.phones)select.append(el('option',phone.label+' '+phone.value,{value:phone.id}));select.value=r.phoneId??'';select.onchange=()=>change(()=>associate(p,r.id,select.value));label.append(select);row.append(label);}
    if(k==='jobs')row.append(el('small',i===0?'Primary job':'Additional job'));
-   for(const f of definitions[k]){const input=field(row,k==='wechats'&&f==='value'?'ID / number':f,r[f],v=>{r[f]=v;r.edited=true;contentChange(p);});input.parentElement.className='field-'+f;}
+   for(const f of definitions[k]){if(service&&f==='label')continue;const input=field(row,k==='wechats'&&f==='value'?'ID / number':f,service==='whatsapp'&&f==='value'?socialValue(p,r):r[f],v=>{r[f]=v;r.edited=true;contentChange(p);});input.parentElement.className='field-'+f;if(service==='whatsapp'&&r.phoneId&&f==='value')input.disabled=true;}
    const actions=el('div',undefined,{className:'row-actions'});
-   actions.append(button('Remove',()=>change(()=>{if(k==='names'&&r.origin==='generated')p.suppressed.push(r.value);p[k].splice(i,1);contentChange(p);})));
-   if(k==='jobs'&&i>0)actions.append(button('Make primary',()=>change(()=>{p.jobs.splice(i,1);p.jobs.unshift(r);contentChange(p);})));
+   actions.append(button('Remove',()=>change(()=>{if(k==='names'&&r.origin==='generated')p.suppressed.push(r.value);if(['jobs','addresses','phones','socials'].includes(k))remove(p,k,r.id);else p[k].splice(i,1);contentChange(p);})));
+   if(k==='jobs'&&i>0)actions.append(button('Make primary',()=>change(()=>{primary(p,r.id);})));
    row.append(actions);section.append(row);
   });pane.append(section);
  }
@@ -99,7 +109,7 @@ function downloadFilename(extension){
  return name+'.'+extension;
 }
 function preview(){
- $('#exportNotice').textContent='';
+ $('#exportNotice').textContent='';$('#modeHelp').textContent=$('#mode').value==='structured'?'Includes job status, language links and contact-method associations for modified Monica. Importer integration is pending.':'Stock Monica mapping: primary job and Notes fallbacks. Job status, language links and phone associations require Structured mode.';
  $('#goReview').disabled=!selected().some(p=>!p.reviewed||p.suggestions.length);
  $('#selectReviewed').disabled=!h.state.some(p=>p.reviewed&&!p.suggestions.length);
  try{const ps=exportPeople(),filename=downloadFilename('vcf'),cards=ps.flatMap(p=>p.cards);$('#preview').textContent=ps.map(p=>vcard(p,$('#mode').value)).join('\n');exportFeedback('');$('#exportNotice').textContent=exporting?'Preparing download with original images…':`${ps.length} reviewed contact(s) ready, including ${cards.length} original image(s). Download ${filename} or ${downloadFilename('zip')} below.`;}

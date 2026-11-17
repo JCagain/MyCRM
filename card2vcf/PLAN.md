@@ -1,13 +1,12 @@
 ﻿# card2vcf implementation plan
 
-Status: implemented; verified with fictional contacts and a fake model server.
-Source of truth: SPEC.md and the user's subsequent decisions. Work through the steps below in order, updating their status and recording verification results. Do not require approval between ordinary implementation steps. Do not use subagents unless explicitly requested.
+Status: historical implementation plan and verification record. For current requirements, see [SPEC.md](SPEC.md); for subsequent direct changes and current implementation status, see the [implementation record](../docs/IMPLEMENTATION.md). The completed checklist below is historical. The pending work is covered by the [integration implementation plan](INTEGRATION-PLAN.md).
 
 ## Scope and boundaries
 
 - One local browser workspace: selectable people, card previews, editable fields, extraction, Undo/Redo, batch First met edits, and export.
 - All real contact data is handled by the user. Development and automated tests use fictional fixtures only. Never inspect private images, contact records, model responses, exports, Monica data, or backups.
-- No persistence of contact data: no project files, autosave, browser databases, or server-side storage. No dashboard, authentication system, Monica API connection, automatic deduplication, or relationship editor.
+- No persistence of contact data: no project files, autosave, browser databases, or server-side storage. No dashboard, authentication system, Monica API connection, automatic matching of duplicate people, or relationship editor.
 - Only source code, documentation, dependency files, and fictional test fixtures belong in this directory.
 - Do not start or inspect the user's existing model server during development. Use a fake local model service for integration tests. An optional real-model test may use an explicitly identified fictional image only.
 
@@ -25,7 +24,7 @@ Use Node.js for a small local HTTP server and plain HTML/CSS/JavaScript for the 
 - Add only dependencies with a clear purpose, such as offline Chinese conversion and ZIP creation. Lock resolved versions during implementation.
 - Interface text: English initially; all contact fields support Unicode.
 
-Implemented product default: bilingual company/title variants stay within one job and export as editable, space-separated text for the selected primary job. Show the exact output in the export preview. This default is editable in the contact form and documented in SPEC.md.
+The original combined-text bilingual default is superseded. See [Contact model and review](SPEC.md#contact-model-and-review) and [planned integration](SPEC.md#planned-integration-with-modified-monica) for the current requirements.
 
 ## 1. Establish the project and test harness
 

@@ -1,17 +1,10 @@
 # Local Monica + card2vcf
 
-This repository versions the local Monica deployment configuration and the card2vcf application. Private data and credentials are deliberately excluded.
-
-- Monica: `monica:4.1.2-apache` with `mariadb:11`, configured in `compose.yaml`, accessible only at http://127.0.0.1:8080.
-- card2vcf: local image extraction, contact review and vCard export. See [startup instructions](card2vcf/QUICKSTART.md), [usage](card2vcf/README.md), and [specification](card2vcf/SPEC.md).
-- The local vision model is installed and started separately. Model files are not part of this repository.
-
-## Files kept outside Git
-
-`cards/`, `data/`, `backups/`, `.env`, exported contacts, images, dependencies and generated test output are ignored. The existing `.env` supplies the app key and database password; do not commit it. Git is not a database or contact backup.
-
-Monica stores application files in `./data/monica` and database files in `./data/database`. Preserve these directories. Back up the database before schema changes; never reset it or use `migrate:fresh` to prepare a change.
-
-## Development privacy
-
-Develop and test with code and fictional fixtures only. Do not inspect or commit real cards, contacts, model responses, database contents or credential-bearing logs. Synthetic image fixtures used by tests are embedded in test source.
+- Start card2vcf and its local model: [quickstart](card2vcf/QUICKSTART.md).
+- Monica deployment configuration: [compose.yaml](compose.yaml).
+- Feature requirements: [card2vcf specification](card2vcf/SPEC.md) and [Monica modification specification](docs/MONICA-SPEC.md).
+- card2vcf integration delivery and wire contract: [implementation plan](card2vcf/INTEGRATION-PLAN.md).
+- Monica implementation: [implementation plan](docs/MONICA-PLAN.md).
+- Implemented behavior, direct changes and verification: [implementation record](docs/IMPLEMENTATION.md).
+- Contributor instructions: [AGENTS.md](AGENTS.md).
+- Data/privacy rules: [Monica working rules](docs/MONICA-SPEC.md#baseline-and-working-rules), [card2vcf privacy](card2vcf/SPEC.md#purpose-and-privacy), and [Git exclusions](.gitignore).

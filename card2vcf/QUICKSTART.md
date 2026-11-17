@@ -83,4 +83,4 @@ $env:CARD2VCF_API_KEY = 'your-local-key'
 npm.cmd start
 ```
 
-Keep real keys out of source files, screenshots, and shared logs. All other configuration and usage details are in [README.md](README.md).
+Keep real keys out of source files, screenshots, and shared logs. See [configuration names](../docs/IMPLEMENTATION.md#configuration) for app settings and [README.md](README.md) for the documentation index.
