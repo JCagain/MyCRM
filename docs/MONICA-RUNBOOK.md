@@ -1,6 +1,6 @@
 # Monica build, verification and deployment
 
-Status: fictional implementation/upgrade verification passed; live schema verification and production deployment pending.
+Status: fictional implementation/upgrade verification and approved live schema compatibility check passed; production deployment pending.
 Requirements and acceptance gates: [specification](MONICA-SPEC.md) and [plan](MONICA-PLAN.md).
 Delivery evidence: [implementation record](IMPLEMENTATION.md#verification).
 
@@ -59,4 +59,4 @@ The [fictional rehearsal](../deploy/monica/rehearsal.ps1) creates a unique isola
 powershell -NoProfile -ExecutionPolicy Bypass -File deploy/monica/rehearsal.ps1
 ```
 
-It stops its containers afterward and retains the fictional named volumes and ignored backups for review. It never loads production environment values or mounts. Evidence and the separately pending live-schema gate are recorded in the [implementation record](IMPLEMENTATION.md#verification).
+It stops its containers afterward and retains the fictional named volumes and ignored backups for review. It never loads production environment values or mounts. Evidence, the completed metadata-only live schema check and pending deployment boundary are recorded in the [implementation record](IMPLEMENTATION.md#verification).

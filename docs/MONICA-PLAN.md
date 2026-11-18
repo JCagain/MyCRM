@@ -1,6 +1,6 @@
 # Monica implementation plan
 
-Status: implemented in source and verified with fictional data; production deployment and live schema verification remain pending. Prepared 2026-11-17; implementation update 2026-11-18. Requirements: [Monica specification](MONICA-SPEC.md). Delivery evidence belongs in the [implementation record](IMPLEMENTATION.md). Reproduction and deployment: [runbook](MONICA-RUNBOOK.md). The [card2vcf wire contract](../card2vcf/INTEGRATION-PLAN.md#wire-contract) is authoritative for exporter/importer encoding.
+Status: implemented in source, verified with fictional data and checked against approved live schema metadata; production deployment remains pending. Prepared 2026-11-17; implementation update 2026-11-18. Requirements: [Monica specification](MONICA-SPEC.md). Delivery evidence belongs in the [implementation record](IMPLEMENTATION.md). Reproduction and deployment: [runbook](MONICA-RUNBOOK.md). The [card2vcf wire contract](../card2vcf/INTEGRATION-PLAN.md#wire-contract) is authoritative for exporter/importer encoding.
 
 ## Review outcome and boundaries
 
@@ -8,7 +8,7 @@ No blocking contradiction was found between the two specifications and the conve
 
 The converter and modified importer now pass fictional application integration, including actual browser combined downloads and ZIP entries in both modes; use the [converter handoff](../card2vcf/INTEGRATION-PLAN.md#verification-and-importer-handoff) and [implementation evidence](IMPLEMENTATION.md#verification). Production validation remains separate.
 
-The initial review used public upstream v4.1.2 sources. Implementation subsequently audited the pinned checkout, isolated runtime schema and upstream test tooling. Deployed public-source hashes match that baseline. Automatic approval review blocked live database metadata access; no production records or credentials were inspected. The user requested implementation; production migration/service switching remains a later task.
+The initial review used public upstream v4.1.2 sources. Implementation subsequently audited the pinned checkout, isolated runtime schema and upstream test tooling. Deployed public-source hashes match that baseline. Following explicit user approval, live version/schema metadata was compared with the fictional environment; results and the non-blocking difference are in the implementation record. No real contact records or card files were inspected. Production migration/service switching remains a later task.
 
 ## Implementation decisions
 
@@ -83,7 +83,7 @@ Honor existing date/time-zone conventions and account scopes. Test that backdati
 ### 1. Establish the source and compatibility baseline
 
 - [x] Obtain the pinned source and create the isolated fictional environment described above.
-- [ ] Audit migrations, casts, work CRUD/API writers, address components, contact-field types, importer policies, list queries, interaction relations and build/test commands. Inspect deployed source/schema metadata only within the [working rules](MONICA-SPEC.md#baseline-and-working-rules); never query contact contents.
+- [x] Audit migrations, casts, work CRUD/API writers, address components, contact-field types, importer policies, list queries, interaction relations and build/test commands. Check deployed source/schema metadata within the [working rules](MONICA-SPEC.md#baseline-and-working-rules) and explicit metadata-only approval, without querying contact contents.
 - [x] Record the compatibility/backfill mapping above, including title-only jobs and representative legacy work API writes.
 - [x] Run upstream relevant tests and capture field-specific Add/Replace characterization tests, including matching precedence, repeated import, absent fields, retained dates and Notes.
 - [x] Run the shared [Sabre probe](../card2vcf/tests/contract/parse.php) with fictional input against the pinned PHP/parser environment. No contract incompatibility was found.

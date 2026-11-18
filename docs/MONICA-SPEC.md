@@ -4,7 +4,7 @@ Status: draft for review, updated 2026-11-13. This document records the agreed r
 
 ## Baseline and working rules
 
-The local compose.yaml was rechecked on 2026-11-12: monica:4.1.2-apache and mariadb:11, with Monica bound to 127.0.0.1:8080. The findings below come from the previous audit of the official v4.1.2 source. Docker Desktop's Linux engine was unavailable during that audit; the running container and database schema have not been verified for this draft.
+The local compose.yaml was rechecked on 2026-11-12: monica:4.1.2-apache and mariadb:11, with Monica bound to 127.0.0.1:8080. The findings below come from the original audit of the official v4.1.2 source, when Docker Desktop's Linux engine was unavailable. Subsequent deployed public-source and user-approved schema-metadata verification is recorded in the [implementation record](IMPLEMENTATION.md#verification).
 
 Inspect the existing implementation before proposing an addition. Reuse features that already satisfy the requirement. Keep the interface simple and limit changes to the agreed scope. Explain configurable values and their effects before changing them.
 
