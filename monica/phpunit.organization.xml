@@ -2,6 +2,7 @@
 <phpunit bootstrap="vendor/autoload.php" colors="true">
   <testsuites><testsuite name="Organization compatibility">
     <file>tests/Feature/OrganizationTest.php</file>
+    <file>tests/Unit/Models/ImportJobTest.php</file>
     <file>tests/Unit/Services/VCard/ImportVCardTest.php</file>
     <file>tests/Unit/Services/Contact/Contact/UpdateWorkInformationTest.php</file>
     <directory>tests/Unit/Services/Contact/Occupation</directory>

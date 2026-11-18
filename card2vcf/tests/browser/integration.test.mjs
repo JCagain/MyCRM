@@ -39,7 +39,9 @@ test('integration controls, metadata history, all downloads and fictional re-ext
   await page.locator('.row-phones').first().getByRole('button',{name:'Remove',exact:true}).click();assert.equal(await wa.first().getByLabel('Number source').inputValue(),'');assert.equal(await wa.first().getByLabel('value',{exact:true}).inputValue(),'555-0111');
   await page.locator('#undo').click();assert.notEqual(await wa.first().getByLabel('Number source').inputValue(),'');await page.locator('#redo').click();await page.locator('#undo').click();
   for(const width of [1440,800,390]){await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,`no overflow at ${width}`);assert.equal(await wa.first().getByLabel('Number source').isVisible(),true);}
-  await page.setViewportSize({width:1440,height:1000});await reviews.first().check();await page.locator('#export').click();
+  await page.setViewportSize({width:1440,height:1000});
+  await page.getByRole('button',{name:'Add jobs',exact:true}).click();
+  await reviews.first().check();await page.locator('#export').click();
   const downloads=new Map();
   for(const mode of ['monica','structured'])for(const zip of [false,true]){
    await page.locator('#mode').selectOption(mode);const saving=page.waitForEvent('download');await page.locator(zip?'#individual':'#combined').click();const bytes=await readFile(await(await saving).path());
@@ -52,13 +54,16 @@ test('integration controls, metadata history, all downloads and fictional re-ext
    if(zip)assert.equal(text,downloads.get(mode));else downloads.set(mode,text);
    assert.equal(card.getAllProperties('org').length,mode==='structured'?3:1);
    assert.match(card.getFirstPropertyValue('note'),/whatsapp: 555-0111/i);assert.match(card.getFirstPropertyValue('note'),/fictional-other/);
+   assert.doesNotMatch(card.getFirstPropertyValue('note'),/Other job: *— *(?:\n|$)/);
    if(mode==='structured'){assert.deepEqual(card.getAllProperties('x-c2v-job-status').map(r=>r.getFirstValue()),['current','former']);assert.equal(card.getAllProperties('org')[0].getParameter('altid'),'job1-org');const social=card.getAllProperties('x-socialprofile');assert.equal(social.length,3);assert.equal(social[1].getParameter('x-c2v-phone'),'phone1');assert.equal(social[1].getFirstValue(),'555-0111');assert.equal(social[2].getParameter('x-c2v-phone'),undefined);}
    const photos=card.getAllProperties('photo');assert.equal(photos.length,2);photos.forEach((photo,i)=>assert.deepEqual(Buffer.from(photo.getFirstValue().split(',')[1],'base64'),images[i]));
   }
   await page.locator('#exportDialog [data-close]').click();
+  await jobs.last().getByRole('button',{name:'Remove',exact:true}).click();
   await page.locator('#extract').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('2 completed'));
   for(let i=0;i<2;i++)await page.getByRole('button',{name:'Accept additional values',exact:true}).first().click();
   assert.equal(await reviews.first().isChecked(),false);assert.equal(await jobs.first().getByLabel('Job status').inputValue(),'current');assert.notEqual(await wa.first().getByLabel('Number source').inputValue(),'');
+  assert.equal(await jobs.count(),3);assert.equal(await wa.count(),2);
   assert.equal(await jobs.filter({has:page.getByText('Linked language variant',{exact:true})}).count(),2);
   await jobs.first().getByRole('button',{name:'Unlink language variants'}).click();assert.equal(await jobs.filter({has:page.getByText('Linked language variant',{exact:true})}).count(),0);
   await page.locator('#undo').click();assert.equal(await jobs.filter({has:page.getByText('Linked language variant',{exact:true})}).count(),2);await page.locator('#redo').click();

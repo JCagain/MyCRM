@@ -10,6 +10,7 @@ export class History{
  redo(){if(!this.future.length)return;this.past.push(structuredClone(this.state));this.state=this.future.pop();}
 }
 const unique=values=>[...new Set(values)];
+const observationKeys=new Set(['jobs','addresses','socials']);
 const sourceIds=row=>unique([...(row.sources??[]),row.source].filter(Boolean));
 function withSources(row,ids){row.sources=unique(ids);if(row.sources.length)row.source=row.sources[0];else delete row.source;return row;}
 function uniqueText(values){const seen=new Set();return values.filter(value=>{const key=normalizedText(value);if(!key||seen.has(key))return false;seen.add(key);return true;});}
@@ -30,6 +31,9 @@ function mergeRow(key,rows,row){
  const found=identity===null?null:rows.find(item=>fieldIdentity(key,item)===identity&&compatible(key,item,candidate));
  if(!found){rows.push(candidate);return;}
  withSources(found,[...sourceIds(found),...sourceIds(candidate)]);
+ if(candidate.observations)found.observations=[...new Map(
+  [...(found.observations??[]),...candidate.observations].map(observation=>[JSON.stringify(observation),observation])
+ ).values()];
  found.manual=found.manual||candidate.manual;
  if(candidate.edited)found.edited=true;
  if('label' in candidate)found.label=uniqueText([...(found.label||'').split(' / '),...(candidate.label||'').split(' / ')]).join(' / ');
@@ -75,6 +79,7 @@ export function combine(state,ids){
 }
 function splitRow(key,row,ids,keepManual){
  const copy=withSources(structuredClone(row),ids);
+ if(copy.observations)copy.observations=copy.observations.filter(observation=>ids.includes(observation.card));
  copy.manual=keepManual&&row.manual;
  if(key==='names'){
   copy.printedSources=row.printedSources.filter(id=>ids.includes(id));
@@ -108,7 +113,10 @@ export function applyExtraction(p,card,data,convert){
  for(const key of keys)for(const row of data[key]??[]){
   const item=key==='names'?{value:row,origin:'printed'}:{...row};
   if(!Object.values(item).some(Boolean))continue;
-  mergeRow(key,p[key],{...item,source:card});
+  const identity=fieldIdentity(key,item);
+  const observations=observationKeys.has(key)&&identity!==null?[{card,identity}]:undefined;
+  if(observations&&p[key].some(existing=>existing.observations?.some(old=>old.card===card&&old.identity===identity)))continue;
+  mergeRow(key,p[key],{...item,source:card,...(observations?{observations}:{})});
  }
  if(data.notes)mergeNotes(p,data.notes.split(/\n\s*\n/));
  deduplicatePerson(p);addSimplified(p,convert);p.reviewed=false;p.revision++;

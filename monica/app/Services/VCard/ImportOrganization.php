@@ -26,13 +26,59 @@ class ImportOrganization
     public function jobs(Contact $contact,array $data,array $choices=[]): void
     {
         if (! $data['structured']) return;
-        $work=app(Work::class);$existing=Occupation::where('account_id',$contact->account_id)->where('contact_id',$contact->id)->orderBy('position')->orderBy('id')->get();
+        $work=app(Work::class);$existing=Occupation::where('account_id',$contact->account_id)->where('contact_id',$contact->id)->with('variants')->get()->keyBy('id');
+        $matches = $this->matchJobs($data['jobs'], $existing);
+        $primary = null;
         foreach ($data['jobs'] as $i=>$job) {
-            $old=$existing->shift();$saved=$work->save($contact,$job['variants'],$old->id ?? null,$choices[$i] ?? null);
+            $id = $matches[$i] ?? null;
+            $saved=$work->save($contact,$job['variants'],$id,$choices[$i] ?? null);
+            $existing->forget($id);
             $saved->position=$i;$saved->save();
-            if ($i===0) $work->project($contact,$saved,$saved->variants()->first());
+            if ($i===0) $primary = $saved;
         }
+        if ($primary) $work->project($contact,$primary,$primary->variants()->first());
         foreach ($existing as $job) $work->remove($contact,$job);
+    }
+
+    private function printedPairs(iterable $variants): array
+    {
+        $pairs = [];
+        foreach ($variants as $variant) {
+            $pairs[] = serialize([Work::key($variant['company'] ?? ''), Work::key($variant['title'] ?? '')]);
+        }
+        $pairs = array_values(array_unique($pairs));
+        sort($pairs, SORT_STRING);
+
+        return $pairs;
+    }
+
+    private function matchJobs(array $jobs, $existing): array
+    {
+        $incoming = array_map(fn ($job) => $this->printedPairs($job['variants']), $jobs);
+        $stored = $existing->map(fn ($job) => $this->printedPairs($job->variants))->all();
+        $matches = [];
+        foreach ([
+            fn ($a, $b) => $a === $b,
+            fn ($a, $b) => (bool) array_intersect($a, $b),
+        ] as $matchesPairs) {
+            $candidates = [];
+            foreach ($incoming as $index => $pairs) {
+                $ids = array_keys(array_filter($stored, fn ($old) => $matchesPairs($pairs, $old)));
+                if ($ids) $candidates[$index] = $ids;
+            }
+            $claimed = [];
+            foreach ($candidates as $index => $ids) {
+                if (count($ids) !== 1 || isset($claimed[$ids[0]])) {
+                    throw ValidationException::withMessages(['job_identity' => 'Multiple existing jobs match the imported work. Reconcile the matching jobs before retrying Replace.']);
+                }
+                $id = $ids[0];
+                $claimed[$id] = true;
+                $matches[$index] = $id;
+                unset($incoming[$index], $stored[$id]);
+            }
+        }
+
+        return $matches;
     }
     public function fields(Contact $contact,array $data): void
     {
@@ -46,7 +92,10 @@ class ImportOrganization
             $phone=$method['phone'] ? ($refs[$method['phone']] ?? null) : null;
             if ($method['phone'] && ! $phone) throw ValidationException::withMessages(['phone'=>'Referenced phone could not be imported.']);
             // Preserve independent and explicitly bound equal numbers as different identities.
-            ContactField::firstOrCreate(['account_id'=>$contact->account_id,'contact_id'=>$contact->id,'contact_field_type_id'=>$type->id,'phone_id'=>$phone,'data'=>$phone ? $phones->firstWhere('id',$phone)->data : $method['value']]);
+            $identity = ['account_id'=>$contact->account_id,'contact_id'=>$contact->id,'contact_field_type_id'=>$type->id,'phone_id'=>$phone];
+            $value = $phone ? $phones->firstWhere('id',$phone)->data : $method['value'];
+            $exists = ContactField::where($identity)->where('data', $value)->get()->contains(fn ($field) => $field->data === $value);
+            if (! $exists) ContactField::create($identity + ['data' => $value]);
         }
         $addresses=$contact->addresses()->orderBy('id')->get()->values();$groups=[];
         foreach ($data['addresses'] as $i=>$address) if (isset($addresses[$i])) {

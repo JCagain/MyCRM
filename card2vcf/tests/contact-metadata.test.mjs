@@ -1,9 +1,39 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {fixture} from './fixtures/integration-contract.mjs';
-import {History,deduplicatePerson,detach,combine,signature} from '../public/domain.mjs';
-import {link,unlink,setStatus,primary,remove,socialValue} from '../public/contact-metadata.mjs';
+import {History,deduplicatePerson,detach,combine,signature,person,applyExtraction} from '../public/domain.mjs';
+import {link,unlink,setStatus,primary,remove,socialValue,associate} from '../public/contact-metadata.mjs';
 import {vcard} from '../public/vcard.mjs';
 import {validateResult} from '../src/schema.mjs';
+
+test('accepting the same card again preserves job status and the chosen WhatsApp number source',()=>{
+ const p=person('front'),history=new History();
+ history.state=[p];
+ const input={names:['Fictional'],jobs:[{company:'Example',title:'Advisor'}],socials:[{label:'WhatsApp',value:'555-0100'}]};
+ applyExtraction(p,'front',{...input,phones:[{value:'555-0100'}]},x=>x);
+ setStatus(p,p.jobs[0].id,'former');
+ associate(p,p.socials[0].id,p.phones[0].id);
+ p.phones[0].value='555-0101';
+ history.change(()=>applyExtraction(p,'front',input,x=>x));
+ for(const restore of [()=>{},()=>history.undo(),()=>history.redo()]){
+  restore();
+  const current=history.state[0];
+  assert.deepEqual(current.jobs.map(job=>job.status),['former']);
+  assert.equal(current.socials.length,1);
+  assert.equal(current.socials[0].phoneId,current.phones[0].id);
+  assert.match(vcard(current,'structured'),/X-C2V-PHONE=phone1:555-0101/);
+ }
+});
+
+test('blank jobs do not claim the compatible export primary or generate fallback notes',()=>{
+ const p=person('front');
+ p.display='Fictional';
+ const blank={company:' ',title:''};
+ p.jobs=[blank,{company:'Example',title:'Advisor'},blank];
+ assert.match(vcard(p),/ORG:Example\r\nTITLE:Advisor/);
+ assert.doesNotMatch(vcard(p),/NOTE:Other job/);
+ p.jobs=[blank];
+ assert.doesNotMatch(vcard(p),/\r\n(?:ORG|TITLE|NOTE):/);
+});
 test('status conflicts, grouping, primary and history preserve metadata',()=>{const p=fixture(),h=new History();h.state=[p];const before=structuredClone(p);h.change(()=>{setStatus(p,p.jobs[0].id,'current');primary(p,p.jobs[1].id);});assert.equal(p.jobs[0].status,'current');assert.equal(p.jobs[1].status,'current');h.undo();assert.deepEqual(h.state[0],before);h.redo();assert.equal(h.state[0].jobs[0].company,'\u793a\u4f8b');const snapshot=signature(p);assert.throws(()=>link(p,'jobs',[p.jobs[0].id,p.jobs[2].id]));assert.equal(signature(p),snapshot);});
 test('unlink survives dedup and equal text never bridges explicit groups',()=>{const p=fixture();unlink(p,'jobs',p.jobs[0].id);p.jobs[1].company=p.jobs[0].company;p.jobs[1].title=p.jobs[0].title;deduplicatePerson(p);assert.equal(p.jobs.length,3);assert.equal(p.jobs[0].alternativeGroupId,null);const before=structuredClone(p);deduplicatePerson(p);assert.deepEqual(p,before);});
 test('phone references follow edits, survive dedup and become independent on delete',()=>{const p=fixture(),wa=p.socials[1];p.phones[0].value='555-0111';assert.equal(socialValue(p,wa),'555-0111');p.phones.push({...p.phones[0],id:crypto.randomUUID()});wa.phoneId=p.phones[1].id;deduplicatePerson(p);assert.equal(p.socials[1].phoneId,p.phones[0].id);remove(p,'phones',p.phones[0].id);assert.equal(p.socials[1].value,'555-0111');assert.equal(p.socials[1].phoneId,null);});

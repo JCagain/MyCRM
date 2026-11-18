@@ -11,6 +11,7 @@ use App\Services\VCard\ImportVCard;
 use League\Flysystem\UnableToReadFile;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use League\Flysystem\UnableToDeleteFile;
 use Illuminate\Validation\ValidationException;
 use Sabre\VObject\Splitter\VCard as VCardReader;
@@ -145,6 +146,11 @@ class ImportJob extends Model
     {
         $this->ended_at = now();
         $this->save();
+        $counters = self::whereKey($this->id)->first(['contacts_imported', 'contacts_skipped']);
+        foreach (['contacts_imported', 'contacts_skipped'] as $counter) {
+            $this->{$counter} = $counters->{$counter};
+            $this->syncOriginalAttribute($counter);
+        }
     }
 
     /**
@@ -267,13 +273,11 @@ class ImportJob extends Model
         }
 
         if (Arr::has($result, 'error') && ! empty($result['error'])) {
-            $this->skipEntry($result['name'], $result['reason']);
-            if (isset($result['review_id'])) $this->importJobReports()->orderByDesc('id')->first()->update(['organization_review_id'=>$result['review_id']]);
+            $this->fileImportJobReport($result['name'], self::VCARD_SKIPPED, $result['reason'], $result['review_id'] ?? null);
 
             return;
         }
 
-        $this->contacts_imported++;
         $this->fileImportJobReport($result['name'], self::VCARD_IMPORTED);
     }
 
@@ -287,7 +291,6 @@ class ImportJob extends Model
     private function skipEntry($name, $reason = null): void
     {
         $this->fileImportJobReport($name, self::VCARD_SKIPPED, $reason);
-        $this->contacts_skipped++;
     }
 
     /**
@@ -298,15 +301,24 @@ class ImportJob extends Model
      * @param  string  $reason
      * @return void
      */
-    private function fileImportJobReport($name, $status, $reason = null): void
+    private function fileImportJobReport($name, $status, $reason = null, ?string $reviewId = null): void
     {
-        $importJobReport = new ImportJobReport;
-        $importJobReport->account_id = $this->account_id;
-        $importJobReport->user_id = $this->user_id;
-        $importJobReport->import_job_id = $this->id;
-        $importJobReport->contact_information = trim($name);
-        $importJobReport->skipped = $status;
-        $importJobReport->skip_reason = $reason;
-        $importJobReport->save();
+        DB::transaction(function () use ($name, $status, $reason, $reviewId) {
+            $importJobReport = new ImportJobReport;
+            $importJobReport->account_id = $this->account_id;
+            $importJobReport->user_id = $this->user_id;
+            $importJobReport->import_job_id = $this->id;
+            $importJobReport->contact_information = trim($name);
+            $importJobReport->skipped = $status;
+            $importJobReport->skip_reason = $reason;
+            $importJobReport->organization_review_id = $reviewId;
+            $importJobReport->save();
+
+            // Persist deltas so the worker cannot overwrite a concurrent review outcome.
+            $counter = $status ? 'contacts_skipped' : 'contacts_imported';
+            self::whereKey($this->id)->update([$counter => DB::raw("COALESCE($counter, 0) + 1")]);
+            $this->{$counter} = ($this->{$counter} ?? 0) + 1;
+            $this->syncOriginalAttribute($counter);
+        });
     }
 }

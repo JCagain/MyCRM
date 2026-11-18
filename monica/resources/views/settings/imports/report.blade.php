@@ -63,9 +63,10 @@
                     settings.import_vcard_contact_exist
                     settings.import_vcard_contact_no_firstname
                     --}}
-                  {{ trans('settings.'.$importJobReport->skip_reason) }}
-                  @if($importJobReport->organization_review_id)<a href="{{ route('organization.review',$importJobReport->organization_review_id) }}">Review company matches</a>@endif
+                  @php($reasonKey = 'settings.'.$importJobReport->skip_reason)
+                  {{ trans($reasonKey) === $reasonKey ? $importJobReport->skip_reason : trans($reasonKey) }}
                   @endif
+                  @if($activeReviewIds->has($importJobReport->organization_review_id))<a href="{{ route('organization.review',$importJobReport->organization_review_id) }}">Review company matches</a>@endif
                 </div>
               </li>
               @endforeach

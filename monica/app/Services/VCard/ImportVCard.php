@@ -279,6 +279,9 @@ class ImportVCard extends BaseService
             if (is_array($result)) return $result;
             $contact=$result;
         } catch (ValidationException $e) {
+            if ($e->errors()['job_identity'] ?? false) {
+                return ['error'=>'ERROR_JOB_IDENTITY','reason'=>$e->errors()['job_identity'][0],'name'=>$this->name($entry)];
+            }
             return ['error'=>'ERROR_ORGANIZATION_METADATA','reason'=>'Review invalid or ambiguous card metadata.','name'=>$this->name($entry)];
         }
 

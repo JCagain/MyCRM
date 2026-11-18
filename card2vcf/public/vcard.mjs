@@ -14,7 +14,12 @@ export function vcard(p,mode='monica',photos=[]){
  const notes=[p.notes];
  const phoneGroups=new Map(p.phones.filter(r=>r.value).map((r,i)=>[r.id,'phone'+(i+1)]));
  if(mode==='structured')groups(p.jobs.filter(r=>meaningful('jobs',r))).forEach((rows,i)=>{const prefix='job'+(i+1);rows.forEach((r,j)=>{for(const [field,prop] of [['company','ORG'],['title','TITLE']])if(r[field])lines.push(prefix+'.'+prop+(rows.length>1?';ALTID='+prefix+'-'+prop.toLowerCase():'')+';X-C2V-PAIR=v'+(j+1)+':'+component(r[field]));});lines.push(prefix+'.X-C2V-JOB-STATUS;VALUE=text:'+rows[0].status);});
- p.jobs.forEach((j,i)=>{if(mode==='structured')return;if(i===0){const prefix=mode==='structured'?`job${i+1}.`:'';if(j.company)lines.push(prefix+'ORG:'+component(j.company));if(j.title)lines.push(prefix+'TITLE:'+escapeText(j.title));}else notes.push(`Other job: ${j.company} — ${j.title}`);});
+ if(mode!=='structured')p.jobs.filter(row=>meaningful('jobs',row)).forEach((job,i)=>{
+  if(i===0){
+   if(job.company)lines.push('ORG:'+component(job.company));
+   if(job.title)lines.push('TITLE:'+escapeText(job.title));
+  }else notes.push(`Other job: ${job.company} — ${job.title}`);
+ });
  for(const [key,prop]of [['phones','TEL;VALUE=text'],['emails','EMAIL'],['websites','URL']])for(const row of p[key])if(row.value){const label=(row.label||'').toLowerCase();const type=['home','work','cell','fax','voice'].includes(label)?`;TYPE=${label}`:'';if(key==='websites'){try{const url=new URL(row.value);if(!['http:','https:'].includes(url.protocol))throw Error();lines.push('URL:'+url.href);}catch{notes.push('Website (unvalidated): '+row.value);}}else lines.push((mode==='structured'&&key==='phones'?phoneGroups.get(row.id)+'.':'')+prop+type+':'+escapeText(row.value));if(row.label&&!type)notes.push(`${key} (${row.label}): ${row.value}`);}
  // Monica 4.1.2 ignores X-WECHAT, so retain a human-readable NOTE fallback.
  for(const row of p.wechats)if(row.value){const label=(row.label||'').toLowerCase(),type=['home','work'].includes(label)?';TYPE='+label:'';lines.push('X-WECHAT;VALUE=text'+type+':'+escapeText(row.value));notes.push('WeChat'+(row.label?' ('+row.label+')':'')+': '+row.value);}

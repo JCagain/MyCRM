@@ -5,6 +5,7 @@
 - Feature requirements: [card2vcf specification](card2vcf/SPEC.md) and [Monica modification specification](docs/MONICA-SPEC.md).
 - card2vcf integration delivery and wire contract: [implementation plan](card2vcf/INTEGRATION-PLAN.md).
 - Monica implementation: [implementation plan](docs/MONICA-PLAN.md).
+- Implementation review findings and repairs: [repair plan](docs/REPAIR-PLAN.md).
 - Monica fictional verification and prepared deployment: [runbook](docs/MONICA-RUNBOOK.md), [pinned source](monica/UPSTREAM.md).
 - Implemented behavior, direct changes and verification: [implementation record](docs/IMPLEMENTATION.md).
 - Contributor instructions: [AGENTS.md](AGENTS.md).

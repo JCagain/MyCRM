@@ -62,13 +62,18 @@ class UpdateVCard implements ShouldQueue
         }
 
         $this->withLocale($this->user->preferredLocale(), function () {
-            $newtag = $this->updateCard($this->addressBookName, $this->contact->uri, $this->contact->card);
-
-            if (! is_null($this->contact->etag) && $newtag !== $this->contact->etag) {
-                Log::warning(__CLASS__.' '.__FUNCTION__.' wrong etag when updating contact. Expected '.$this->contact->etag.', get '.$newtag, [
-                    'contacturl' => $this->contact->uri,
-                    'carddata' => $this->contact->card,
-                ]);
+            try {
+                $result = $this->updateCard($this->addressBookName, $this->contact->uri, $this->contact->card);
+            } catch (\Throwable) {
+                // Queue workers report thrown exceptions. Do not attach the original exception.
+                throw new \RuntimeException('CardDAV contact update failed.');
+            }
+            if (isset($result['error'])) {
+                Log::warning($result['error'] === 'ERROR_COMPANY_REVIEW'
+                    ? 'CardDAV contact update requires company review.'
+                    : 'CardDAV contact update was rejected.');
+            } elseif ($this->contact->etag !== null && $result['etag'] !== $this->contact->etag) {
+                Log::warning('CardDAV contact update returned an unexpected ETag.');
             }
         });
     }
@@ -79,9 +84,9 @@ class UpdateVCard implements ShouldQueue
      * @param  mixed  $addressBookId
      * @param  string  $cardUri
      * @param  string  $cardData
-     * @return string|null
+     * @return array
      */
-    private function updateCard($addressBookId, $cardUri, $cardData): ?string
+    private function updateCard($addressBookId, $cardUri, $cardData): array
     {
         $backend = app(CardDAVBackend::class)->init($this->user);
 
@@ -94,34 +99,21 @@ class UpdateVCard implements ShouldQueue
             }
         }
 
-        try {
-            $result = app(ImportVCard::class)
-                ->execute([
-                    'account_id' => $this->user->account_id,
-                    'user_id' => $this->user->id,
-                    'contact_id' => $contact_id,
-                    'entry' => $cardData,
-                    'etag' => $this->contact->etag,
-                    'behaviour' => ImportVCard::BEHAVIOUR_REPLACE,
-                    'addressBookName' => $addressBookId === $backend->backendUri() ? null : $addressBookId,
-                ]);
+        $result = app(ImportVCard::class)->execute([
+            'account_id' => $this->user->account_id,
+            'user_id' => $this->user->id,
+            'contact_id' => $contact_id,
+            'entry' => $cardData,
+            'etag' => $this->contact->etag,
+            'behaviour' => ImportVCard::BEHAVIOUR_REPLACE,
+            'addressBookName' => $addressBookId === $backend->backendUri() ? null : $addressBookId,
+        ]);
 
-            if (! Arr::has($result, 'error')) {
-                return app(GetEtag::class)->execute([
-                    'account_id' => $this->user->account_id,
-                    'contact_id' => $result['contact_id'],
-                ]);
-            }
-        } catch (\Exception $e) {
-            Log::error(__CLASS__.' '.__FUNCTION__.': '.$e->getMessage(), [
-                'contacturl' => $cardUri,
-                'contact_id' => $contact_id,
-                'carddata' => $cardData,
-                $e,
-            ]);
-            throw $e;
-        }
+        if (Arr::has($result, 'error')) return $result;
 
-        return null;
+        return ['etag' => app(GetEtag::class)->execute([
+            'account_id' => $this->user->account_id,
+            'contact_id' => $result['contact_id'],
+        ])];
     }
 }

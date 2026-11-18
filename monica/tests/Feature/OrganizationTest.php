@@ -33,6 +33,128 @@ class OrganizationTest extends TestCase
         $user=User::where('account_id',$a->id)->first() ?? factory(User::class)->create(['account_id'=>$a->id]);
         return app(ImportVCard::class)->execute(['account_id'=>$a->id,'user_id'=>$user->id,'entry'=>$entry,'behaviour'=>$mode]);
     }
+    public function test_replace_preserves_job_identity_and_exact_contact_methods(): void
+    {
+        Queue::fake();
+        $account = $this->account();
+        $contact = $this->contact($account);
+        $work = app(Work::class);
+        $alpha = $work->save($contact, [['company' => 'Alpha', 'title' => 'Advisor']]);
+        $alpha->update(['start_date' => '2001-01-01']);
+        $beta = $work->save($contact, [['company' => 'Beta', 'title' => 'Engineer']]);
+        $beta->update(['start_date' => '2020-01-01']);
+        $entry = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Fictional\r\nUID:{$contact->uuid}\r\n"
+            ."job1.ORG:Beta\r\njob1.TITLE:Engineer\r\njob2.ORG:Alpha\r\njob2.TITLE:Advisor\r\n"
+            ."X-SOCIALPROFILE;VALUE=text;TYPE=linkedin:Abc\r\nX-SOCIALPROFILE;VALUE=text;TYPE=linkedin:abc\r\nEND:VCARD\r\n";
+        for ($i = 0; $i < 2; $i++) {
+            $this->assertArrayNotHasKey('error', $this->import($account, $entry, ImportVCard::BEHAVIOUR_REPLACE));
+            $this->assertSame([$beta->id, $alpha->id], $contact->occupations()->orderBy('position')->pluck('id')->all());
+            $this->assertSame($beta->id, $contact->fresh()->primary_occupation_id);
+            $this->assertSame('2001-01-01', $alpha->fresh()->start_date->toDateString());
+            $this->assertSame('2020-01-01', $beta->fresh()->start_date->toDateString());
+            $this->assertSame(['Abc', 'abc'], $contact->contactFields()->orderBy('id')->pluck('data')->all());
+        }
+
+        $work->save($contact->fresh(), [['company' => 'Alpha', 'title' => 'Advisor']]);
+        $this->assertSame('ERROR_JOB_IDENTITY', $this->import($account, $entry, ImportVCard::BEHAVIOUR_REPLACE)['error']);
+        $this->assertSame(3, $contact->occupations()->count());
+    }
+
+    public function test_backfill_reuses_unique_alias_and_leaves_ambiguous_company_unresolved(): void
+    {
+        $account = $this->account();
+        $work = app(Work::class);
+        $company = $work->resolve($account->id, ['Legacy Name', 'Printed Alias']);
+        $work->resolve($account->id, ['Ambiguous'], 'new');
+        $work->resolve($account->id, ['Ambiguous'], 'new');
+        foreach ([['Printed Alias', 'Advisor', $company], ['Printed Alias', 'Director', $company], ['Ambiguous', 'Engineer', null]] as [$name, $title, $expected]) {
+            $contact = $this->contact($account);
+            $contact->update(['company' => $name, 'job' => $title]);
+            app(Backfill::class)->contact($contact);
+            $job = $contact->occupations()->firstOrFail();
+            app(Backfill::class)->contact($contact->fresh());
+            $this->assertSame($job->id, $contact->fresh()->primary_occupation_id);
+            $this->assertSame($expected, $job->fresh()->company_id);
+            $this->assertSame($name, $job->variants()->first()->company);
+            $this->assertSame(1, $contact->occupations()->count());
+        }
+        $this->assertSame(3, Company::where('account_id', $account->id)->count());
+    }
+
+    public function test_review_updates_the_original_report_and_worker_keeps_the_totals(): void
+    {
+        Queue::fake();
+        $account = $this->account();
+        $user = factory(User::class)->create(['account_id' => $account->id]);
+        app(\App\Services\User\AcceptPolicy::class)->execute(['account_id' => $account->id, 'user_id' => $user->id, 'ip_address' => null]);
+        factory(Company::class, 2)->create(['account_id' => $account->id, 'name' => 'Ambiguous']);
+        $job = \App\Models\Account\ImportJob::create([
+            'account_id' => $account->id, 'user_id' => $user->id, 'filename' => 'fictional.vcf',
+            'contacts_imported' => 0, 'contacts_skipped' => 0, 'contacts_found' => 2,
+        ]);
+        $entry = fn ($name, $work = '') => "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:$name\r\nN:;$name;;;\r\n".$work."END:VCARD\r\n";
+        $process = new \ReflectionMethod($job, 'processSingleEntry');
+        $process->invoke($job, $entry('Fictional first'));
+        $process->invoke($job, $entry('Fictional pending', "ORG:Ambiguous\r\nTITLE:Advisor\r\n"));
+        $report = $job->importJobReports()->where('skipped', true)->firstOrFail();
+        $id = $report->organization_review_id;
+        $this->assertNotNull($id);
+        $this->assertEquals(1, $job->fresh()->contacts_skipped);
+        $this->actingAs($user)->post(route('organization.resolve-review', $id), ['company_choices' => [0 => 'new']])->assertRedirect();
+        $this->post(route('organization.resolve-review', $id), ['company_choices' => [0 => 'new']])->assertNotFound();
+        // Simulate the original worker finalizing with an in-memory copy from before resolution.
+        (new \ReflectionMethod($job, 'endJob'))->invoke($job);
+        $this->assertEquals(2, $job->contacts_imported);
+        $this->assertEquals(0, $job->contacts_skipped);
+        $this->assertEquals(2, $job->contacts_found);
+        $this->assertFalse((bool) $report->fresh()->skipped);
+        $this->assertNull($report->fresh()->skip_reason);
+        $this->assertNull($report->fresh()->organization_review_id);
+
+        $process->invoke($job, $entry('Fictional expired', "ORG:Ambiguous\r\nTITLE:Advisor\r\n"));
+        $expired = $job->importJobReports()->where('skipped', true)->firstOrFail();
+        DB::table('organization_import_reviews')->where('id', $expired->organization_review_id)
+            ->update(['expires_at' => now()->subMinute()]);
+        $this->get('/settings/import/report/'.$job->id)->assertOk()->assertDontSee('Review company matches');
+        $this->post(route('organization.resolve-review', $expired->organization_review_id), ['skip' => true])->assertNotFound();
+        $process->invoke($job, $entry('Fictional skipped', "ORG:Ambiguous\r\nTITLE:Advisor\r\n"));
+        $skipped = $job->importJobReports()->latest('id')->firstOrFail();
+        $this->get('/settings/import/report/'.$job->id)->assertOk()->assertSee('Review company matches');
+        $this->post(route('organization.resolve-review', $skipped->organization_review_id), ['skip' => true])->assertRedirect();
+        $this->assertNull($skipped->fresh()->organization_review_id);
+        $this->assertEquals(2, $job->fresh()->contacts_skipped);
+    }
+
+    public function test_carddav_logs_safe_outcomes_and_reports_a_sanitized_failure(): void
+    {
+        $user = factory(User::class)->create();
+        $contact = new \App\Services\DavClient\Utils\Model\ContactUpdateDto('', 'fictional-etag', 'fictional-card-and-photo');
+        $this->mock(\App\Http\Controllers\DAV\Backend\CardDAV\CardDAVBackend::class, function ($backend) {
+            $backend->shouldReceive('init')->andReturnSelf();
+            $backend->shouldReceive('backendUri')->andReturn('fictional-book');
+        });
+        $this->mock(ImportVCard::class, function ($import) {
+            $import->shouldReceive('execute')->once()->ordered()->andReturn(['error' => 'ERROR_COMPANY_REVIEW']);
+            $import->shouldReceive('execute')->once()->ordered()->andReturn(['contact_id' => 1]);
+            $import->shouldReceive('execute')->once()->ordered()->andThrow(new \RuntimeException('fictional-card-and-photo'));
+        });
+        $this->mock(\App\Services\VCard\GetEtag::class, fn ($etag) => $etag->shouldReceive('execute')->once()->andReturn('different-fictional-etag'));
+        \Illuminate\Support\Facades\Log::shouldReceive('warning')->once()->with('CardDAV contact update requires company review.');
+        \Illuminate\Support\Facades\Log::shouldReceive('warning')->once()->with('CardDAV contact update returned an unexpected ETag.');
+        $job = new class($user, 'fictional-book', $contact) extends \App\Jobs\Dav\UpdateVCard {
+            public function batching() { return true; }
+        };
+        $job->handle();
+        $job->handle();
+        try {
+            $job->handle();
+            $this->fail('Expected a queue failure.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('CardDAV contact update failed.', $exception->getMessage());
+            $this->assertNull($exception->getPrevious());
+        }
+    }
+
     public function test_actual_converter_output_imports_complete_graph_and_replaces_without_duplicates()
     {
         Queue::fake();$a=$this->account();$result=$this->import($a,$this->source());$this->assertArrayNotHasKey('error',$result);

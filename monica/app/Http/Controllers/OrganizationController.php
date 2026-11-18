@@ -101,9 +101,12 @@ class OrganizationController extends Controller
             $contact->addresses()->where(function ($q) use ($ids,$groups) { $q->whereIn('id',$ids)->orWhereIn('alternative_group',$groups); })->update(['alternative_group'=>$group]);
         });return back();
     }
-    private function reviewRow(string $id)
+    private function reviewRow(string $id, bool $lock = false)
     {
-        $row=DB::table('organization_import_reviews')->where('id',$id)->where('account_id',auth()->user()->account_id)->where('user_id',auth()->id())->where('expires_at','>',now())->first();abort_unless($row,404);return $row;
+        $query=DB::table('organization_import_reviews')->where('id',$id)->where('account_id',auth()->user()->account_id)->where('user_id',auth()->id())->where('expires_at','>',now());
+        $row = ($lock ? $query->lockForUpdate() : $query)->first();
+        abort_unless($row,404);
+        return $row;
     }
     public function review(string $id)
     {
@@ -115,12 +118,34 @@ class OrganizationController extends Controller
     public function resolveReview(Request $request,string $id)
     {
         $result=DB::transaction(function () use ($request,$id) {
-            DB::table('organization_import_reviews')->where('id',$id)->lockForUpdate()->first();$row=$this->reviewRow($id);
-            if ($request->input('skip')) { DB::table('organization_import_reviews')->where('id',$id)->delete();return null; }
-            $payload=json_decode(Crypt::decryptString($row->payload),true);
-            $result=app(ImportVCard::class)->execute($payload+['account_id'=>$row->account_id,'user_id'=>$row->user_id,'company_choices'=>$request->input('company_choices',[])]);
-            if (isset($result['error']) && $result['error']!=='ERROR_CONTACT_EXIST') return $result;
-            DB::table('organization_import_reviews')->where('id',$id)->delete();return $result;
+            $row = $this->reviewRow($id, true);
+            $result = null;
+            if (! $request->input('skip')) {
+                $payload=json_decode(Crypt::decryptString($row->payload),true);
+                $result=app(ImportVCard::class)->execute($payload+['account_id'=>$row->account_id,'user_id'=>$row->user_id,'company_choices'=>$request->input('company_choices',[])]);
+                if (isset($result['error']) && ! isset($result['review_id']) && $result['error'] !== 'ERROR_CONTACT_EXIST') {
+                    return $result;
+                }
+            }
+
+            $reports = DB::table('import_job_reports')->where('organization_review_id', $id)
+                ->where('account_id', $row->account_id)->where('user_id', $row->user_id);
+            $report = $reports->lockForUpdate()->first();
+            if ($report) {
+                $changes = ['organization_review_id' => $result['review_id'] ?? null];
+                if ($result && ! isset($result['error']) && $report->skipped) {
+                    $changes += ['skipped' => false, 'skip_reason' => null];
+                    DB::table('import_jobs')->where('id', $report->import_job_id)->where('account_id', $row->account_id)
+                        ->update(['contacts_imported' => DB::raw('contacts_imported + 1'), 'contacts_skipped' => DB::raw('contacts_skipped - 1')]);
+                } elseif (isset($result['reason'])) {
+                    $changes['skip_reason'] = $result['reason'];
+                } elseif ($request->input('skip')) {
+                    $changes['skip_reason'] = null;
+                }
+                $reports->where('id', $report->id)->update($changes);
+            }
+            DB::table('organization_import_reviews')->where('id',$id)->delete();
+            return $result;
         });
         if (isset($result['review_id'])) return redirect()->route('organization.review',$result['review_id']);
         if (isset($result['error']) && $result['error']!=='ERROR_CONTACT_EXIST') return back()->withErrors(['import'=>$result['reason']]);

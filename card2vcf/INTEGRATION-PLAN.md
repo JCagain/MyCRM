@@ -6,6 +6,8 @@ This plan specifies implementation decisions and execution order; the linked spe
 
 ## Source findings that affect the implementation
 
+The subsequent implementation review and its repairs are tracked in the [repair plan](../docs/REPAIR-PLAN.md).
+
 | Existing code | Consequence |
 | --- | --- |
 | [fields.mjs](public/fields.mjs) supplies editable columns, extraction validation and exact-value identity. | Keep internal IDs, status and associations separate from generic text columns; metadata must not make an empty row count as contact content. |

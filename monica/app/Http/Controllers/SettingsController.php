@@ -225,7 +225,13 @@ class SettingsController extends Controller
         $importJob = ImportJob::where('account_id', auth()->user()->account_id)
             ->findOrFail($importJobId);
 
-        return view('settings.imports.report', compact('importJob'));
+        $activeReviewIds = \Illuminate\Support\Facades\DB::table('organization_import_reviews')
+            ->where('account_id', $importJob->account_id)->where('user_id', auth()->id())
+            ->where('expires_at', '>', now())
+            ->whereIn('id', $importJob->importJobReports->pluck('organization_review_id')->filter())
+            ->pluck('id')->flip();
+
+        return view('settings.imports.report', compact('importJob', 'activeReviewIds'));
     }
 
     /**

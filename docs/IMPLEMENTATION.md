@@ -4,6 +4,8 @@ Updated: 2026-11-18. Maintenance rules: [AGENTS.md](../AGENTS.md).
 
 ## Status
 
+Repairs for the seven findings from the 2026-11-18 implementation review are in source. The [repair plan](REPAIR-PLAN.md) links each repair to its requirements and regression checks. Production deployment remains pending.
+
 | Scope | State | Evidence |
 | --- | --- | --- |
 | [Existing card2vcf specification](../card2vcf/SPEC.md), excluding its planned-integration section and explicitly future clauses | Implemented in source | Baseline commit `2a0e200`; subsequent changes in `207df4f`. |
@@ -24,6 +26,8 @@ Updated: 2026-11-18. Maintenance rules: [AGENTS.md](../AGENTS.md).
 Implementation choices beyond the requirement text: pending company-review payloads are encrypted, owned by account/user and expire after one day; explicit batch requests are limited to 500 contact IDs. Extended WeChat/LinkedIn/WhatsApp imports use additive identity matching, including the explicit phone reference, consistent with the existing social collection policy. Absent properties retain their existing field-specific behavior; [characterization tests](../monica/tests/Feature/OrganizationTest.php) and the upstream importer suite are the executable reference. Neither Notes fallbacks nor interaction/rating/category values are parsed into additional imported records.
 
 Direct compatibility fixes: an unchanged matched contact now remains the Replace target instead of creating a duplicate; name fallback now consumes parsed names and treats empty/NULL optional components consistently. UID → email → name precedence and first-match/Add-skip policy remain as specified. Company deletion repairs primary work references; legacy work/occupation edits are transactional. Avatar/file processing begins only after the contact graph commits.
+
+The repair adds two outcomes to the import workflow. When structured Replace cannot associate imported work with a unique existing employment record, it rejects that card with instructions to reconcile the matching jobs. When a user resolves a company match from an upload, the original report and its counters reflect the result. The report offers review links only while a review is active and belongs to the signed-in user. [Repair plan](REPAIR-PLAN.md) · [Regression tests](../monica/tests/Feature/OrganizationTest.php)
 
 ## Direct card2vcf changes beyond the specification
 
@@ -68,6 +72,8 @@ Check model performs a separate short request for the model list and checks the 
 Evidence: [server](../card2vcf/server.mjs), [connection-check tests](../card2vcf/tests/server.test.mjs). Dependencies and test commands: [package manifest](../card2vcf/package.json).
 
 ## Verification
+
+- 2026-11-18 repair verification passed with 122 Monica tests and 398 assertions, 28 converter unit tests, five converter browser tests, and the pinned Sabre/vobject parser. The fictional handoff imported actual combined and ZIP-entry downloads in both modes, verified the committed avatar, and passed the Monica browser flow. The rebuilt candidate `sha256:fc91c5f785b35b6dac852178ef361ae9cc8e4016ff0168458c1f7c9488c57d75` passed the packaged browser check and fictional upgrade/restore rehearsal `monica-rehearsal-20261118104613`, including shared employer membership after two backfill reruns. [Repair plan](REPAIR-PLAN.md)
 
 - Verified packaged image ID: `sha256:84acf0a5499ace1770489d03362ad2acca78f5adffcf600ab3072bbb8c0c370c`, local tag `monica-local:4.1.2-organization-v1`. This is a local build, not a published registry image or deployed production image.
 - 2026-11-18 Monica verification: the [focused suite](../monica/phpunit.organization.xml) passed **104 tests, 320 assertions** against PHP 8.2.35 / Sabre 4.5.4 / isolated MariaDB 11. It includes the affected upstream importer, work, occupation, contact-field service/model suites and the new feature checks. Actual converter browser downloads and extracted ZIP entries passed the application importer in both modes, repeated Add/Replace, malformed metadata, company review, partial pairs, status/alias handling, ratings, batch/account isolation, phone lifecycle, interaction derivation and filtered pagination/last-contacted in both HTML and JSON. The [committed import check](../monica/tests/Browser/committed-import.php) separately passed avatar decoding, avatar reuse and rejected-card file isolation.

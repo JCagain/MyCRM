@@ -39,8 +39,10 @@ class Backfill
                 $key='flat:'.$contact->id;
                 $primary=Occupation::where('legacy_key',$key)->first();
                 if (! $primary) {
-                    // Preserve ambiguous historical companies; do not guess which record the old flat text meant.
-                    $company=$contact->company ? $work->resolve($contact->account_id,[$contact->company], 'new') : null;
+                    $names = $contact->company ? [$contact->company] : [];
+                    $candidates = $work->candidates($contact->account_id, $names);
+                    // Keep ambiguous printed names on the variant for later resolution.
+                    $company = count($candidates) > 1 ? null : $work->resolve($contact->account_id, $names);
                     $primary=Occupation::create(['account_id'=>$contact->account_id,'contact_id'=>$contact->id,'company_id'=>$company,'title'=>$contact->job,'status'=>'unspecified','currently_works_here'=>true,'legacy_key'=>$key,'position'=>0]);
                     $primary->variants()->create(['company'=>$contact->company,'title'=>$contact->job,'position'=>0]);
                 }

@@ -4,6 +4,8 @@ Status: implemented in source, verified with fictional data and checked against 
 
 ## Review outcome and boundaries
 
+For defects found in the subsequent implementation review, follow the [repair plan](REPAIR-PLAN.md).
+
 No blocking contradiction was found between the two specifications and the converter integration plan. The contract separates job pairing from language alternatives, preserves explicit phone associations, and retains the compatible export path. Omitting guessed LANGUAGE tags is consistent with the agreed language behavior; ALTID alone can express alternatives ([RFC 6350](https://www.rfc-editor.org/rfc/rfc6350.html#section-5.4)).
 
 The converter and modified importer now pass fictional application integration, including actual browser combined downloads and ZIP entries in both modes; use the [converter handoff](../card2vcf/INTEGRATION-PLAN.md#verification-and-importer-handoff) and [implementation evidence](IMPLEMENTATION.md#verification). Production validation remains separate.
