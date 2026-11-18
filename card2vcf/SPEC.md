@@ -45,7 +45,7 @@ Session only; no project save/open, autosave, localStorage, IndexedDB, or server
 
 ## Planned integration with modified Monica
 
-Status: converter scope implemented and verified with fictional fixtures; modified-Monica importer and shared end-to-end acceptance remain pending. Follow the [shared VCF requirements and acceptance checks](../docs/MONICA-SPEC.md#shared-card2vcf-to-monica-vcf-requirements). Delivery evidence and test boundaries are in the [implementation record](../docs/IMPLEMENTATION.md).
+Follow the [shared VCF requirements and acceptance checks](../docs/MONICA-SPEC.md#shared-card2vcf-to-monica-vcf-requirements). Current converter/importer delivery status, evidence and deployment boundaries are in the [implementation record](../docs/IMPLEMENTATION.md).
 
 - Multilingual editing, language linking/unlinking in both apps, display and person-only unlink scope follow the [Monica multilingual requirements](../docs/MONICA-SPEC.md#multilingual-entries). Extraction and exact-field deduplication must not infer translation equivalence.
 - Use the existing Structured export for modified Monica. Reuse grouped ORG/TITLE pairs for all jobs, retaining the primary selection, and add support for explicit language-alternative links.

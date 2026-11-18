@@ -1,14 +1,14 @@
 # Monica implementation plan
 
-Status: planned, not implemented. Prepared 2026-11-17. Requirements: [Monica specification](MONICA-SPEC.md). Delivery evidence belongs in the [implementation record](IMPLEMENTATION.md). The [card2vcf wire contract](../card2vcf/INTEGRATION-PLAN.md#wire-contract) is authoritative for exporter/importer encoding; this plan does not introduce a second format.
+Status: implemented in source and verified with fictional data; production deployment and live schema verification remain pending. Prepared 2026-11-17; implementation update 2026-11-18. Requirements: [Monica specification](MONICA-SPEC.md). Delivery evidence belongs in the [implementation record](IMPLEMENTATION.md). Reproduction and deployment: [runbook](MONICA-RUNBOOK.md). The [card2vcf wire contract](../card2vcf/INTEGRATION-PLAN.md#wire-contract) is authoritative for exporter/importer encoding.
 
 ## Review outcome and boundaries
 
 No blocking contradiction was found between the two specifications and the converter integration plan. The contract separates job pairing from language alternatives, preserves explicit phone associations, and retains the compatible export path. Omitting guessed LANGUAGE tags is consistent with the agreed language behavior; ALTID alone can express alternatives ([RFC 6350](https://www.rfc-editor.org/rfc/rfc6350.html#section-5.4)).
 
-The initial planning review did not certify the converter changes. Converter implementation has since passed its own fictional tests and both parser checks; use the [converter handoff](../card2vcf/INTEGRATION-PLAN.md#verification-and-importer-handoff) and [implementation evidence](IMPLEMENTATION.md#verification). Modified-Monica importer and shared end-to-end acceptance remain pending.
+The converter and modified importer now pass fictional application integration, including actual browser combined downloads and ZIP entries in both modes; use the [converter handoff](../card2vcf/INTEGRATION-PLAN.md#verification-and-importer-handoff) and [implementation evidence](IMPLEMENTATION.md#verification). Production validation remains separate.
 
-The review rechecked the versioned compose configuration and upstream v4.1.2 [import service](https://github.com/monicahq/monica/blob/v4.1.2/app/Services/VCard/ImportVCard.php), [Occupation](https://github.com/monicahq/monica/blob/v4.1.2/app/Models/Contact/Occupation.php) and [Company](https://github.com/monicahq/monica/blob/v4.1.2/app/Models/Account/Company.php) sources. No running schema or private data was inspected. The first implementation gate must confirm the actual source, migrations, parser and supported tooling. No application implementation or deployment is authorized by completing this document.
+The initial review used public upstream v4.1.2 sources. Implementation subsequently audited the pinned checkout, isolated runtime schema and upstream test tooling. Deployed public-source hashes match that baseline. Automatic approval review blocked live database metadata access; no production records or credentials were inspected. The user requested implementation; production migration/service switching remains a later task.
 
 ## Implementation decisions
 
@@ -30,7 +30,7 @@ Implement [companies/jobs](MONICA-SPEC.md#companies-and-jobs) and [multilingual 
 | Contact primary job | Nullable occupation reference and representative variant, validated against that contact. |
 | Address | Retain existing address records; add contact-owned alternative-group/order metadata and fields needed to preserve all ADR components. |
 
-Final table/column names and foreign keys depend on gate 1's schema audit. A company-only or title-only job must remain representable; do not create a fictitious company for a missing ORG. If the existing occupation schema requires a company, make its relationship nullable and adapt affected services/serializers with regression coverage before importing partial pairs.
+The [migration](../monica/database/migrations/2026_11_17_000001_add_contact_organization.php) records the audited additive schema. Both occupation company and title become nullable, with a domain requirement that at least one is present. Existing dates/IDs are retained; primary references are validated against the contact, while category/rating/phone relationships use foreign keys. A missing ORG never creates a fictitious company. Deployed schema differences must be resolved before eventual production migration.
 
 Use a single work service for UI, API and importer writes. Keep existing flat work fields as the primary representative projection after migration. Audit every writer before enabling that projection so an old endpoint cannot silently overwrite secondary jobs. The three-state status is canonical; maintain `currently_works_here` as a compatibility projection according to the spec's membership rule. Preserve existing true/false values as Current/Former during migration; do not turn existing explicit status into Unspecified. Legacy API writes without the new status must retain their established boolean meaning.
 
@@ -82,57 +82,57 @@ Honor existing date/time-zone conventions and account scopes. Test that backdati
 
 ### 1. Establish the source and compatibility baseline
 
-- [ ] Obtain the pinned source and create the isolated fictional environment described above.
+- [x] Obtain the pinned source and create the isolated fictional environment described above.
 - [ ] Audit migrations, casts, work CRUD/API writers, address components, contact-field types, importer policies, list queries, interaction relations and build/test commands. Inspect deployed source/schema metadata only within the [working rules](MONICA-SPEC.md#baseline-and-working-rules); never query contact contents.
-- [ ] Record the exact compatibility/backfill mapping in this plan after the audit, including constraints needed for title-only jobs and the legacy work API.
-- [ ] Run upstream relevant tests and capture field-specific Add/Replace characterization tests, including matching precedence, repeated import, absent fields, retained dates and Notes.
-- [ ] Run the shared [Sabre probe](../card2vcf/tests/contract/parse.php) with fictional input against the pinned PHP/parser environment. Resolve any incompatibility in the single wire contract before importer changes.
+- [x] Record the compatibility/backfill mapping above, including title-only jobs and representative legacy work API writes.
+- [x] Run upstream relevant tests and capture field-specific Add/Replace characterization tests, including matching precedence, repeated import, absent fields, retained dates and Notes.
+- [x] Run the shared [Sabre probe](../card2vcf/tests/contract/parse.php) with fictional input against the pinned PHP/parser environment. No contract incompatibility was found.
 
 Exit: reproducible source/test environment and a tested migration design. A missing runtime or unverified parser blocks implementation acceptance, not this planning document.
 
 ### 2. Add schema and domain services
 
-- [ ] Implement additive migrations, account seeding, idempotent legacy backfill, model relations and validation.
-- [ ] Implement work projection, company matching, variants/link/unlink, primary selection and phone-reference lifecycle services.
-- [ ] Add fictional migration fixtures for each legacy shape, collisions and two accounts. Exercise interrupted/repeated backfill and foreign-key/deletion paths.
-- [ ] Test preserving both flat work values and occupations, their employment dates/status, all printed variants and old tag assignments.
+- [x] Implement additive migrations, account seeding, idempotent legacy backfill, model relations and validation.
+- [x] Implement work projection, company matching, variants/link/unlink, primary selection and phone-reference lifecycle services.
+- [x] Add fictional legacy-shape/collision/account fixtures, repeated-backfill checks and company/phone deletion coverage; rehearse matching database/storage restoration for migration recovery.
+- [x] Test preserving both flat work values and occupations, their employment dates/status, all printed variants and old tag assignments.
 
 Exit: fixtures retain original information after migration and a second run; operations cannot cross account/contact boundaries or undo explicit unlinking.
 
 ### 3. Extend importer and existing contact editors
 
-- [ ] Implement normalization, preflight review, transactional writes and adapters using the shared contract.
-- [ ] Add compact work/status/primary and link/unlink controls to existing contact views; show printed variants together. Keep company membership navigation in the existing UI.
-- [ ] Extend address and contact-method editors through the same domain services; cover phone edit/delete and independent-value conversion.
-- [ ] Test malformed metadata, partial pairs, exact/ambiguous aliases, same-number associations, two people sharing a company, and legacy imports in both Add and Replace modes.
+- [x] Implement normalization, preflight review, transactional writes and adapters using the shared contract.
+- [x] Add compact work/status/primary and link/unlink controls to existing contact views; show printed variants together. Keep company membership navigation in the existing UI.
+- [x] Extend address and contact-method editors through the same domain services; cover phone edit/delete and independent-value conversion.
+- [x] Test malformed metadata, partial pairs, exact/ambiguous aliases, same-number associations, two people sharing a company, and legacy imports in both Add and Replace modes.
 
 Exit: fictional cards import with correct relationships; errors do not partially alter a contact; legacy characterization tests still pass.
 
 ### 4. Extend organization and interaction views
 
-- [ ] Implement category and level management, defaults, ordering, list predicates and batch endpoints/UI.
-- [ ] Add the derived last-contacted query to existing relevant views and sorts.
-- [ ] Verify filter algebra, stable pagination/counts, selection scope, atomic batch errors, unrated values, rename/reorder persistence and interaction mutation cases.
-- [ ] Verify keyboard labels, validation messages and desktop/narrow layouts without introducing new dashboards.
+- [x] Implement category and level management, defaults, ordering, list predicates and batch endpoints/UI.
+- [x] Add the derived last-contacted query to existing relevant views and sorts.
+- [x] Verify filter algebra, stable pagination/counts, selection scope, atomic batch errors, unrated values, rename/reorder persistence and interaction mutation cases.
+- [x] Verify labelled controls, validation messages and desktop/narrow layouts without introducing new dashboards.
 
 Exit: all Monica-only [acceptance checks](MONICA-SPEC.md#acceptance-checks) pass in the fictional environment.
 
 ### 5. Verify the actual converter-to-Monica workflow
 
-- [ ] Complete the [converter handoff](../card2vcf/INTEGRATION-PLAN.md#7-record-delivery-and-hand-off-to-monica); use its fictional fixture module and agreed expected semantics, extending coverage there when necessary.
-- [ ] Generate actual combined and individual downloads with the exporter/browser harness. Feed combined cards and extracted ZIP entries to the same modified importer used by the application.
-- [ ] Run every [shared acceptance check](MONICA-SPEC.md#shared-acceptance-checks), including absent status, partial pairs, all status values, Unicode, two-person unlink isolation, independent/associated equal phone values and repeated Add/Replace.
-- [ ] Assert ordinary names/nicknames, phones, email, websites, Notes/First met and existing photo/avatar behavior remain intact. Do not claim that additional source images become Monica attachments merely because VCF contains them.
-- [ ] Run relevant PHP unit/feature suites, migration checks, frontend checks and browser flows, then the converter suites. Record exact commands, versions and results; distinguish parser success from application integration success.
+- [x] Complete the [converter handoff](../card2vcf/INTEGRATION-PLAN.md#7-record-delivery-and-hand-off-to-monica); use and extend its shared fictional fixture module.
+- [x] Feed actual browser combined downloads and extracted ZIP entries to the modified application importer in both modes.
+- [x] Run the [shared acceptance checks](MONICA-SPEC.md#shared-acceptance-checks), including absent status, partial pairs, all status values, Unicode, two-person unlink isolation, independent/associated equal phone values and repeated Add/Replace.
+- [x] Assert ordinary names/nicknames, phones, email, website/First met Notes fallbacks and existing first-PHOTO/avatar behavior. Additional PHOTO values are not certified as attachments.
+- [x] Run relevant PHP suites, migration checks and browser flows; record commands/results in the implementation record. New controls use Blade and existing compiled assets.
 
 Exit: actual exporter output passes the complete shared checks in a clean fictional database. Hand-authored VCF or parser-only tests are insufficient.
 
 ### 6. Prepare deployment and record delivery
 
-- [ ] Build a versioned custom image and prepare the compose change without switching the current deployment. Explain any changed configuration and its effect; retain loopback binding and existing storage paths.
-- [ ] Rehearse upgrade, backup/restore and rollback on fictional data using the existing engine version. Provide a runbook covering stopped writers/queues, pre-migration database and storage backup, migration/backfill, image switch and health checks.
-- [ ] For eventual deployment, require a completed backup before migration. Rollback restores a matching database/storage backup and prior image; do not assume an old image can safely use migrated data or use destructive down-migrations as the recovery plan.
+- [x] Build a versioned custom image and prepare the compose override without switching the current deployment; retain loopback binding and existing storage paths.
+- [x] Rehearse upgrade, database/storage backup and restoration under the old image on fictional data using the MariaDB 11 image; provide the deployment/recovery runbook.
+- [x] Require a completed matching backup before eventual migration and restoration with the prior image for rollback; down-migrations intentionally refuse destructive removal.
 - [ ] Leave production real-data processing/import verification to the user under the working rules. Keep deployment pending until that later task; do not inspect backup contents.
-- [ ] Update the implementation record with spec references and evidence, and add source/startup/runbook links to the documentation index. Record converter, importer, Monica-only features and deployment status separately.
+- [x] Update the implementation record with spec references/evidence and add source/startup/runbook links to the documentation index, separating implementation from pending production gates.
 
 Exit: implementation delivery is backed by reproducible fictional tests, and deployment has an independently reviewable runbook. Planning completion alone is not implementation or deployment completion.

@@ -1,0 +1,100 @@
+<?php
+
+namespace App\Models\Contact;
+
+use App\Models\Account\Account;
+use App\Models\Account\Company;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class Occupation extends Model
+{
+    public function variants() { return $this->hasMany(JobVariant::class)->orderBy('position')->orderBy('id'); }
+
+    protected static function booted()
+    {
+        static::saving(function ($job) {
+            if ($job->isDirty('currently_works_here') && ! $job->isDirty('status')) $job->status=$job->currently_works_here===null ? 'unspecified' : ($job->currently_works_here ? 'current' : 'former');
+            $job->status=$job->status ?? 'unspecified';
+            $job->currently_works_here=$job->status!=='former';
+        });
+    }
+    protected $table = 'occupations';
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<string>
+     */
+    protected $fillable = [
+        'account_id',
+        'contact_id',
+        'company_id',
+        'title',
+        'description',
+        'salary',
+        'salary_unit',
+        'currently_works_here',
+        'start_date',
+        'end_date',
+        'status',
+        'position',
+        'legacy_key',
+    ];
+
+    /**
+     * Valid value for salary unit.
+     *
+     * @var array
+     */
+    public static $salaryUnits = [
+        'year', 'month', 'week', 'day', 'hour',
+    ];
+
+    /**
+     * The attributes that should be cast to native types.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'start_date' => 'datetime:Y-m-d',
+        'end_date' => 'datetime:Y-m-d',
+    ];
+
+    /**
+     * The attributes that aren't mass assignable.
+     *
+     * @var array<string>|bool
+     */
+    protected $guarded = ['id'];
+
+    /**
+     * Get the account record associated with the occupation.
+     *
+     * @return BelongsTo
+     */
+    public function account()
+    {
+        return $this->belongsTo(Account::class);
+    }
+
+    /**
+     * Get the contact record associated with the occupation.
+     *
+     * @return BelongsTo
+     */
+    public function contact()
+    {
+        return $this->belongsTo(Contact::class);
+    }
+
+    /**
+     * Get the company record associated with the occupation.
+     *
+     * @return BelongsTo
+     */
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
+    }
+}

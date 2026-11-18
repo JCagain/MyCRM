@@ -1,6 +1,6 @@
 # card2vcf integration implementation plan
 
-Status: converter implementation and verification completed 2026-11-17; modified-Monica import and shared acceptance remain pending. Prepared 2026-11-13. Requirements: [card2vcf integration scope](SPEC.md#planned-integration-with-modified-monica) and its linked Monica sections. Current delivery status and earlier changes belong in the [implementation record](../docs/IMPLEMENTATION.md). The [original plan](PLAN.md) remains historical.
+Status: converter implementation and verification completed 2026-11-17; modified-Monica fictional integration completed 2026-11-18. Prepared 2026-11-13. Requirements: [card2vcf integration scope](SPEC.md#planned-integration-with-modified-monica) and its linked Monica sections. Current delivery/deployment status and evidence belong in the [implementation record](../docs/IMPLEMENTATION.md). The [original plan](PLAN.md) remains historical.
 
 This plan specifies implementation decisions and execution order; the linked specs remain the authority for product behavior. Its [wire contract](#wire-contract) is the single reference for the new exporter/importer encoding. The [Monica implementation plan](../docs/MONICA-PLAN.md) references it rather than duplicating it.
 
@@ -95,7 +95,7 @@ Retain the existing mapping and default selected mode described in [Export](SPEC
 
 Monica v4.1.2's [import service](https://github.com/monicahq/monica/blob/v4.1.2/app/Services/VCard/ImportVCard.php) reads flat work information and legacy SOCIALPROFILE values. Its [lockfile](https://github.com/monicahq/monica/blob/v4.1.2/composer.lock) pins sabre/vobject 4.5.4. That parser's [Document](https://github.com/sabre-io/vobject/blob/4.5.4/lib/Document.php) and [Property](https://github.com/sabre-io/vobject/blob/4.5.4/lib/Property.php) expose groups, parameters and explicit text values.
 
-During planning, an in-memory fictional fragment passed parsing with ical.js 2.2.1. Delivery verification subsequently passed actual exporter output through both ical.js and Monica 4.1.2's Sabre/vobject 4.5.4, using the same semantic expectations. The exporter changes were already present before the PHP gate was executed; no incompatibility was found. Actual modified-Monica import remains unverified. See [verification evidence](../docs/IMPLEMENTATION.md#verification).
+During planning, an in-memory fictional fragment passed parsing with ical.js 2.2.1. Delivery verification subsequently passed actual exporter output through both ical.js and Monica 4.1.2's Sabre/vobject 4.5.4, using the same semantic expectations. The exporter changes were already present before the PHP gate was executed; no incompatibility was found. Modified application-import evidence is recorded in the [implementation record](../docs/IMPLEMENTATION.md#verification).
 
 ## Implementation sequence
 
@@ -164,9 +164,9 @@ Exit check: the complete converter test suite passes with isolated fixtures and 
 ### 7. Record delivery and hand off to Monica
 
 - [x] Update [the implementation record](../docs/IMPLEMENTATION.md) with links to the implemented spec scope, this plan, commit evidence and verification results. Describe only implemented behavior that has no other authoritative description; do not paste this checklist or the specs.
-- [x] Update the spec's integration status only to distinguish completed converter work from pending importer work. Maintain README/AGENTS links as needed; startup instructions require changes only if the actual startup process changes.
+- [x] Link the spec to the implementation record for current converter/importer/deployment status. Maintain README/AGENTS links as needed; startup instructions change only with the actual startup process.
 - [x] Hand the fictional fixture module, actual exporter-generated VCFs, parser probe and this wire-contract link to the later Monica implementation. Keep generated contact exports outside tracked files unless a narrowly scoped fictional fixture exception is justified.
-- [x] Leave [shared end-to-end acceptance](../docs/MONICA-SPEC.md#shared-acceptance-checks) explicitly pending until the modified importer runs those actual exports in an isolated fictional database. That later check includes the two-person shared-company/unlink case and unchanged import matching behavior.
+- [x] Keep [shared acceptance](../docs/MONICA-SPEC.md#shared-acceptance-checks) distinct from converter/parser success. The modified importer has since run actual exports in an isolated fictional database; evidence, including two-person unlink isolation and import matching, is in the implementation record.
 
 The converter can be recorded as implemented after its own checks pass. Full Monica compatibility can be recorded only after the linked shared acceptance checks pass; planning or parser-only verification is not that evidence.
 
@@ -184,4 +184,4 @@ The contract command requires Docker and uses the digest-pinned Monica 4.1.2 ima
 
 The handoff consists of the [fixture and shared semantic assertions](tests/fixtures/integration-contract.mjs), [exporter tests](tests/vcard-contract.test.mjs), [PHP probe](tests/contract/parse.php), [browser download checks](tests/browser/integration.test.mjs) and [wire contract](#wire-contract). Generate fresh fictional VCF on stdout with `node tests/contract/generate.mjs structured` or `node tests/contract/generate.mjs monica`; the importer tests should consume these actual exporter results. Generated exports are not tracked. Combined and individual browser downloads are compared exactly within each mode, including original image bytes and order.
 
-The [Monica plan](../docs/MONICA-PLAN.md) owns subsequent importer implementation and isolated-database acceptance. No production import, real-model accuracy test, production-schema check or private data processing was performed for this converter delivery.
+The [Monica plan](../docs/MONICA-PLAN.md) owns importer implementation and isolated-database acceptance; its current results are in the implementation record. No production import, real-model accuracy test, production-schema check or private data processing was performed for this converter delivery.

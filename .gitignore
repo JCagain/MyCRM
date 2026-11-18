@@ -7,6 +7,8 @@
 !/.env.example
 !/card2vcf/
 !/docs/
+!/monica/
+!/deploy/
 
 # Private source images, contacts, database storage and backups.
 /cards/
@@ -37,6 +39,8 @@
 
 # Installed dependencies, generated output and local tooling state.
 node_modules/
+vendor/
+.phpunit.result.cache
 test-results/
 playwright-report/
 coverage/

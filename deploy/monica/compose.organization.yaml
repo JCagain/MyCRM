@@ -1,0 +1,8 @@
+# Prepared override only; applying this file switches the application image.
+# Resolve paths from the first file: compose.yaml at the repository root.
+services:
+  app:
+    image: monica-local:4.1.2-organization-v1
+    build:
+      context: ./monica
+      dockerfile: Dockerfile.organization

@@ -1,0 +1,66 @@
+import assert from 'node:assert/strict';
+import {mkdir} from 'node:fs/promises';
+import {chromium} from '../../card2vcf/node_modules/@playwright/test/index.mjs';
+
+const url=process.env.MONICA_FICTIONAL_URL || 'http://127.0.0.1:8081';
+if(!['http://127.0.0.1:8081','http://127.0.0.1:8082'].includes(url))throw new Error('Only isolated fictional loopback ports are supported.');
+for(let attempt=0;attempt<30;attempt++) {
+ try { if((await fetch(url+'/login')).ok)break; } catch {}
+ if(attempt===29)throw new Error('Fictional Monica did not become ready.');
+ await new Promise(resolve=>setTimeout(resolve,1000));
+}
+const browser=await chromium.launch({channel:'msedge',headless:true});
+const page=await browser.newPage({viewport:{width:1440,height:1000}});
+const errors=[];page.on('pageerror',error=>errors.push(error.message));
+try {
+ await page.goto(url+'/login');
+ await page.locator('#email').fill('monica-browser@example.invalid');
+ await page.locator('#password').fill('fictional-browser-only');
+ await Promise.all([page.waitForURL('**/dashboard'),page.locator('button[type=submit]').click()]);
+ await page.goto(url+'/people');
+ const profile=await page.getByRole('link',{name:'Fictional Person',exact:true}).getAttribute('href');
+ assert.ok(profile,'fictional person appears in the existing list');
+ await page.goto(profile+'/work/edit');
+ assert.equal(await page.getByRole('heading',{name:'Jobs and printed language variants'}).count(),1);
+ const jobs=page.locator('fieldset').filter({has:page.getByText('Select job',{exact:true})});
+ const before=await jobs.count();assert.equal(before,5);
+ await jobs.first().getByRole('button',{name:'Unlink language variants'}).click();
+ assert.equal(await jobs.count(),before+1);
+ await jobs.nth(0).getByLabel('Select job',{exact:true}).check();
+ await jobs.filter({has:page.locator('input[value="示例"]')}).getByLabel('Select job',{exact:true}).check();
+ await page.getByRole('button',{name:'Link selected jobs as language variants'}).click();
+ assert.equal(await jobs.count(),before);
+ await page.goto(profile);
+ assert.equal(await page.getByRole('heading',{name:'Contact methods and language links'}).count(),1);
+ const wechat=page.locator('form').filter({has:page.locator('input[name=service][value=wechat]')}).last();
+ await wechat.locator('input[name=data]').fill('browser-fictional-wechat');await wechat.getByRole('button',{name:'Save',exact:true}).click();
+ assert.equal(await page.locator('input[value=browser-fictional-wechat]').count(),1);
+ await page.goto(url+'/settings/organization');
+ const category=page.locator('form').filter({has:page.locator('input[name=kind][value=category]')}).last();
+ await category.getByLabel('New category').fill('Browser category');await category.getByRole('button',{name:'Add',exact:true}).click();
+ const tag=page.locator('form').filter({has:page.locator('input[name=kind][value=tag]')}).last();
+ await tag.getByLabel('New tag').fill('Browser tag');await tag.getByLabel(/^Category/).selectOption({label:'Browser category'});await tag.getByRole('button',{name:'Add',exact:true}).click();
+ await page.goto(url+'/people');
+ const batch=page.getByRole('form',{name:'Batch edit people'});
+ await batch.getByRole('checkbox',{name:'Select Fictional Person',exact:true}).check();
+ await batch.getByLabel(/^Add tags/).selectOption({label:'Browser tag'});
+ await batch.getByLabel(/^Closeness/).selectOption({label:'Close'});
+ await batch.getByRole('button',{name:'Apply to selected people'}).click();
+ const filters=page.getByRole('form',{name:'People filters'});
+ await filters.getByLabel('Browser tag',{exact:true}).check();await filters.getByLabel(/^Closeness/).selectOption({label:'Close'});
+ await filters.getByRole('button',{name:'Apply filters'}).click();
+ assert.equal(await page.getByRole('link',{name:'Fictional Person',exact:true}).count(),1);
+ assert.equal(await page.getByRole('checkbox',{name:'Select Fictional Person',exact:true}).isChecked(),false);
+ await mkdir(new URL('../../.monica-tools/screenshots/',import.meta.url),{recursive:true});
+ for(const width of [1440,390]) {
+  await page.setViewportSize({width,height:1000});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,`people list fits ${width}px`);
+  await page.screenshot({path:new URL(`../../.monica-tools/screenshots/people-${width}.png`,import.meta.url).pathname.replace(/^\/([A-Za-z]:)/,'$1'),fullPage:true});
+ }
+ await page.goto(profile+'/work/edit');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'work editor fits narrow layout');
+ await page.goto(url+'/settings/organization');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'settings fit narrow layout');
+ assert.deepEqual(errors,[]);
+ process.stdout.write('Monica fictional browser flow passed: work links, methods, settings, batch filters, selection reset and desktop/narrow layouts.\n');
+} catch(error) {
+ process.stderr.write(`Browser failed at ${page.url()}\n${(await page.locator('body').innerText()).slice(0,1800)}\n`);throw error;
+} finally { await browser.close(); }

@@ -1,0 +1,9 @@
+FROM composer:2.8 AS composer
+FROM monica:4.1.2@sha256:9319157715ef21ce4206b7efcc66a74ce4ae0eed8859905e69e1be6105e4ecef
+COPY --from=composer /usr/bin/composer /usr/local/bin/composer
+WORKDIR /var/www/html
+COPY . .
+RUN rm -f .env bootstrap/cache/config.php bootstrap/cache/packages.php bootstrap/cache/services.php \
+ && composer install --no-interaction --prefer-dist --no-progress --no-scripts \
+ && php artisan package:discover \
+ && chown -R www-data:www-data storage bootstrap/cache

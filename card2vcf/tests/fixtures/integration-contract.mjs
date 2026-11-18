@@ -11,6 +11,9 @@ export function contractFixture(){
  p.socials.push({label:'WhatsApp',value:'555-0100'});
  p.emails.push({label:'work',value:'fictional@example.invalid'});
  p.wechats.push({value:'fictional_wechat'});
+ p.nicknames='Fictional nickname';
+ p.websites.push({label:'Website',value:'https://example.invalid/fictional'});
+ p.firstMet={date:'2020-01-02',occasion:'Fictional conference',location:'Example hall',notes:'Fictional introduction'};
  p.notes='Fictional escape check: comma, semicolon; slash\\\n'+ '\u793a\u4f8b'.repeat(60);
  return p;
 }
@@ -37,5 +40,7 @@ export function assertContract(rows){
  assert.equal(social[1].parts[0],first('tel').parts[0]);assert.equal(social[3].parts[0],first('tel').parts[0]);
  assert.ok(!social[2].params['x-c2v-phone']&&!social[3].params['x-c2v-phone']);
  assert.equal(first('email').parts[0],'fictional@example.invalid');assert.equal(first('x-wechat').parts[0],'fictional_wechat');
+ assert.equal(first('nickname').parts[0],'Fictional nickname');assert.equal(first('url').parts[0],'https://example.invalid/fictional');
+ assert.ok(first('note').parts[0].includes('First met occasion: Fictional conference'));
  assert.ok(first('note').parts[0].includes('comma, semicolon; slash\\\n'+ '\u793a\u4f8b'.repeat(60)));
 }

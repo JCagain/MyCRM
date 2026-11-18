@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import {readFile} from 'node:fs/promises';
+import {readFile,mkdir,writeFile} from 'node:fs/promises';
+import path from 'node:path';
 import {chromium} from '@playwright/test';
 import ICAL from 'ical.js';
 import {unzipSync,strFromU8} from 'fflate';
 import {createApp} from '../../server.mjs';
 
-const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64');
+const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4////fwAJ+wP9KobjigAAAABJRU5ErkJggg==','base64');
 const images=[png,Buffer.concat([png,Buffer.from('fictional second image')])];
 const listen=s=>new Promise(r=>s.listen(0,'127.0.0.1',()=>r('http://127.0.0.1:'+s.address().port)));
 
@@ -43,6 +44,11 @@ test('integration controls, metadata history, all downloads and fictional re-ext
   for(const mode of ['monica','structured'])for(const zip of [false,true]){
    await page.locator('#mode').selectOption(mode);const saving=page.waitForEvent('download');await page.locator(zip?'#individual':'#combined').click();const bytes=await readFile(await(await saving).path());
    const text=zip?strFromU8(Object.values(unzipSync(bytes))[0]):bytes.toString('utf8');const card=new ICAL.Component(ICAL.parse(text));
+   if(process.env.C2V_HANDOFF_DIRECTORY){
+    await mkdir(process.env.C2V_HANDOFF_DIRECTORY,{recursive:true});
+    await writeFile(path.join(process.env.C2V_HANDOFF_DIRECTORY,`${mode}-${zip?'individual.zip':'combined.vcf'}`),bytes);
+    if(zip)await writeFile(path.join(process.env.C2V_HANDOFF_DIRECTORY,`${mode}-zip-entry.vcf`),text);
+   }
    if(zip)assert.equal(text,downloads.get(mode));else downloads.set(mode,text);
    assert.equal(card.getAllProperties('org').length,mode==='structured'?3:1);
    assert.match(card.getFirstPropertyValue('note'),/whatsapp: 555-0111/i);assert.match(card.getFirstPropertyValue('note'),/fictional-other/);
