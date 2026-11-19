@@ -76,3 +76,9 @@ Using fictional fixtures only, demonstrate extraction response handling, manual 
 ## Amendment to the converter job-status default
 
 Newly extracted or manually added job rows default to Current. Preserve user-selected statuses during re-extraction. This supersedes the initial job status in the [integration plan](INTEGRATION-PLAN.md#state-and-editing-decisions).
+
+## Amendment to primary job selection and export defaults
+
+Show one **Make primary** action on each non-primary job and a **Primary** badge on the primary job. A linked job has a separate preferred-version control. Selecting a primary job moves the whole job first and preserves its version order. Selecting a preferred version moves that version first within its job and preserves the job order. This updates the [review controls](#reviewing-job-and-address-variants) and the [integration plan’s ordering rule](INTEGRATION-PLAN.md#state-and-editing-decisions).
+
+Default to **Structured vCard (multiple jobs)** for modified Monica. The existing [wire contract](INTEGRATION-PLAN.md#wire-contract) sends the primary job first and each job’s preferred version first within its group. **Monica compatible** remains available and uses the primary job’s preferred company and title, with the other jobs and versions in Notes. This replaces the default selection in the [shared Monica export requirements](../docs/MONICA-SPEC.md#shared-card2vcf-to-monica-vcf-requirements).

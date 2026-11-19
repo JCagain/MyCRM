@@ -85,6 +85,11 @@ test('switch UI languages in a working session without navigating or changing co
  await expect(page.locator('#batchDialog').getByLabel('场合')).toBeVisible();
  await page.locator('#batchDialog [data-close]').click();
  await page.locator('#export').click();
+ await expect(page.locator('#mode')).toHaveValue('structured');
+ await expect(page.locator('#modeHelp')).toContainText('适用于修改版 Monica');
+ await page.locator('#mode').selectOption('monica');
+ await expect(page.locator('#modeHelp')).toContainText('适用于标准版 Monica');
+ await page.locator('#mode').selectOption('structured');
  const preview=await page.locator('#preview').textContent();
  expect(preview).toContain('FN:Export');
  await expect(page.locator('#exportNotice')).toContainText('已准备好 1 位');

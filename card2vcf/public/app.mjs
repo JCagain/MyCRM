@@ -1,4 +1,4 @@
-import {initialize,groups,statuses,link,unlink,setStatus,primary,associate,remove,socialValue} from './contact-metadata.mjs';
+import {initialize,groups,statuses,link,unlink,setStatus,primary,preferJobVersion,associate,remove,socialValue} from './contact-metadata.mjs';
 import {socialService,fieldIdentity} from './fields.mjs';
 import {History,person,keys,combine,detach,reconcileRead,resolveProposal,manualChange,editNotes,suggestedPair,separatePair,addSimplified,displayName,batch,signature} from './domain.mjs';
 import {vcard} from './vcard.mjs';
@@ -309,6 +309,14 @@ function variantSection(p,key){
   if(isPrimary)heading.append(details,el('strong',t('Primary'),{className:'primary-job-label'}));
   const controls=el('div',undefined,{className:'link-controls'});
   const open=picker?.person===p.id&&picker.key===key&&picker.id===source.id;
+  if(job&&!isPrimary){
+   const promote=button(t('Make primary'),()=>change(()=>{
+    if(open)picker=null;
+    primary(p,source.id);
+   }));
+   promote.classList.add('make-primary');
+   heading.append(promote);
+  }
   let trigger;
   if(entries.length>1){
    trigger=button(t('Link with…'),()=>{
@@ -336,13 +344,17 @@ function variantSection(p,key){
   if(open&&trigger)item.append(variantPicker(p,key,entries,source,index+1,trigger));
   for(const [versionIndex,row] of group.entries()){
    const version=el('div',undefined,{id:'variant-'+row.id,className:'version row-'+key});
-   if(linked)version.append(el('div',t('Printed version {0}',versionIndex+1),{className:'version-heading'}));
+   if(linked){
+    const versionHeading=el('div',t('Printed version {0}',versionIndex+1),{className:'version-heading'});
+    if(job&&versionIndex===0)versionHeading.append(el('span',t('Preferred version'),{className:'preferred-version-label'}));
+    version.append(versionHeading);
+   }
    const fields=el('div',undefined,{className:'printed-fields'});
    rowFields(fields,p,key,row,{printed:true});
    const actions=el('div',undefined,{className:'version-actions'});
-   if(job&&row!==p.jobs[0])actions.append(button(t('Make primary'),()=>change(()=>{
+   if(job&&versionIndex>0)actions.append(button(t('Use as preferred version'),()=>change(()=>{
     if(open)picker=null;
-    primary(p,row.id);
+    preferJobVersion(p,row.id);
    })));
    actions.append(removeButton(p,key,row));
    version.append(fields,actions);
@@ -492,7 +504,7 @@ function downloadFilename(extension){
  if(/[<>:"/\\|?*\x00-\x1f]/.test(name)||/[. ]$/.test(name)||/^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i.test(name))throw new UiError('Use a valid filename without path separators or Windows reserved names/characters.');
  return name+'.'+extension;
 }
-const modeHelp=()=>t($('#mode').value==='structured'?'Includes job status, language links and contact-method associations for modified Monica. Importer integration is pending.':'Stock Monica mapping: primary job and Notes fallbacks. Job status, language links and phone associations require Structured mode.');
+const modeHelp=()=>t($('#mode').value==='structured'?'For modified Monica. Preserves all jobs, their statuses and linked versions, and contact-method associations. Monica uses each job’s preferred version for its company and title.':'For stock Monica. Uses the primary job’s preferred company and title. Other jobs, linked versions and WeChat IDs are preserved in Notes.');
 function setExportNotice(key,...values){
  exportMessage=key?()=>t(key,...values):null;
  $('#exportNotice').textContent=exportMessage?.()??'';

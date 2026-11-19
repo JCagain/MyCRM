@@ -7,7 +7,24 @@ export function groups(rows){const result=[];for(const r of rows){let group=r.al
 export function link(p,key,ids){initialize(p);const selected=p[key].filter(r=>ids.includes(r.id));if(selected.length<2)throw Error('Select at least two rows to link.');const all=p[key].filter(r=>selected.includes(r)||r.alternativeGroupId&&selected.some(s=>s.alternativeGroupId===r.alternativeGroupId));if(key==='jobs'&&new Set(all.map(r=>r.status)).size>1)throw Error('Set the same status on these jobs before linking.');const group=crypto.randomUUID();for(const r of all)r.alternativeGroupId=group;p[key]=groups(p[key]).flat();p.reviewed=false;p.revision++;}
 export function unlink(p,key,id){const r=p[key].find(r=>r.id===id);if(!r?.alternativeGroupId)return;const group=r.alternativeGroupId;for(const row of p[key].filter(r=>r.alternativeGroupId===group)){row.alternativeGroupId=null;row.separationId=crypto.randomUUID();}p.reviewed=false;p.revision++;}
 export function setStatus(p,id,value){if(!statuses.includes(value))throw Error('Invalid job status.');const row=p.jobs.find(r=>r.id===id);for(const r of p.jobs)if(r===row||row.alternativeGroupId&&r.alternativeGroupId===row.alternativeGroupId)r.status=value;p.revision++;}
-export function primary(p,id){const r=p.jobs.find(r=>r.id===id);const rest=p.jobs.filter(q=>q!==r&&(!r.alternativeGroupId||q.alternativeGroupId!==r.alternativeGroupId));p.jobs=[r,...p.jobs.filter(q=>q!==r&&r.alternativeGroupId&&q.alternativeGroupId===r.alternativeGroupId),...rest];p.revision++;}
+export function primary(p,id){
+ const entries=groups(p.jobs);
+ const index=entries.findIndex(group=>group.some(row=>row.id===id));
+ if(index<1)return;
+ const [job]=entries.splice(index,1);
+ p.jobs=[job,...entries].flat();
+ p.revision++;
+}
+export function preferJobVersion(p,id){
+ const entries=groups(p.jobs);
+ const job=entries.find(group=>group.some(row=>row.id===id));
+ const index=job?.findIndex(row=>row.id===id)??-1;
+ if(index<1)return;
+ const [version]=job.splice(index,1);
+ job.unshift(version);
+ p.jobs=entries.flat();
+ p.revision++;
+}
 export function socialValue(p,r){return r.phoneId?p.phones.find(q=>q.id===r.phoneId)?.value??r.value:r.value;}
 export function associate(p,id,phoneId){const r=p.socials.find(r=>r.id===id);r.value=socialValue(p,r);r.phoneId=phoneId||null;if(phoneId){const phone=p.phones.find(q=>q.id===phoneId);if(!phone)throw Error('Phone unavailable.');r.value=phone.value;}p.revision++;}
 export function remove(p,key,id){if(key==='phones')for(const r of p.socials)if(r.phoneId===id){r.value=socialValue(p,r);r.phoneId=null;}p[key]=p[key].filter(r=>r.id!==id);clean(p);p.revision++;}

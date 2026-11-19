@@ -15,6 +15,10 @@ Repairs for the seven findings from the 2026-11-18 implementation review are in 
 | [Monica modification specification](MONICA-SPEC.md) | Implemented and verified | [Plan](MONICA-PLAN.md), [pinned source](../monica/UPSTREAM.md), [reproducible verification](MONICA-RUNBOOK.md). The user approved metadata-only access; no real contact records or card files were inspected. |
 | [Local deployment configuration](../compose.yaml) | Verified repair image deployed to the local instance on 2026-11-18 | [Prepared override](../deploy/monica/compose.organization.yaml), [deployment/recovery runbook](MONICA-RUNBOOK.md). [Live deployment verification](#live-deployment) |
 
+## card2vcf primary job and export
+
+Implemented the [primary job and export amendment](../card2vcf/SPEC.md#amendment-to-primary-job-selection-and-export-defaults) in both interface languages. All 32 unit tests and 8 Edge browser tests passed. The [metadata test](../card2vcf/tests/contact-metadata.test.mjs) covers independent job and version order through Undo and Redo. The [Edge integration test](../card2vcf/tests/browser/integration.test.mjs) covers the editor controls, the default format and the exported job data in both formats. The [language test](../card2vcf/tests/browser/ui-language.test.mjs) checks the localized export guidance.
+
 ## card2vcf interface language
 
 The header's **Language** control switches the interface between English and Simplified Chinese without reloading. English is the default for each new session. Switching preserves the current cards, contact data, and selections. The app displays model-generated warning text as returned by the model.

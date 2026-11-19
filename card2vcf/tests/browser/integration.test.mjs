@@ -44,6 +44,12 @@ test('integration controls, metadata history, all downloads and fictional re-ext
   await candidate.click();assert.equal(await reviews.first().isChecked(),false);
   assert.equal(await jobItems.first().locator('.version').count(),2);
   assert.equal(await jobItems.first().getByText('Primary',{exact:true}).count(),1);
+  await expect(jobItems.first().getByRole('button',{name:'Make primary'})).toHaveCount(0);
+  await page.locator('#uiLanguage').selectOption('zh-CN');
+  await expect(jobs.first().getByText('首选版本',{exact:true})).toBeVisible();
+  await expect(jobs.nth(1).getByRole('button',{name:'设为首选版本'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'设为主要任职'})).toHaveCount(1);
+  await page.locator('#uiLanguage').selectOption('en');
   await jobItems.first().getByLabel('Job status').selectOption('unspecified');
   await jobItems.nth(1).getByRole('button',{name:'Link with…'}).click();
   assert.equal(await picker.getByLabel('Status for Job 1').inputValue(),'unspecified');
@@ -56,7 +62,17 @@ test('integration controls, metadata history, all downloads and fictional re-ext
   const deleteColor=await page.locator('#deleteSelected').evaluate(button=>getComputedStyle(button).color);
   const removeColors=await page.locator('#editor').getByRole('button',{name:'Remove',exact:true}).evaluateAll(buttons=>buttons.map(button=>getComputedStyle(button).color));
   assert.deepEqual([...new Set(removeColors)],[deleteColor]);
-  await jobItems.nth(1).getByLabel('Job status').selectOption('former');await jobs.nth(1).getByRole('button',{name:'Make primary'}).click();assert.equal(await jobs.first().getByLabel('Company',{exact:true}).inputValue(),'\u793a\u4f8b');
+  await jobItems.nth(1).getByLabel('Job status').selectOption('former');
+  await jobItems.nth(1).locator('.item-heading').getByRole('button',{name:'Make primary'}).click();
+  await expect(jobs.first().getByLabel('Company',{exact:true})).toHaveValue('Former Example');
+  const linkedJob=jobItems.filter({has:page.getByRole('button',{name:'Use as preferred version'})});
+  await expect(linkedJob.getByRole('button',{name:'Make primary'})).toHaveCount(1);
+  await linkedJob.getByRole('button',{name:'Use as preferred version'}).click();
+  await expect(jobs.first().getByLabel('Company',{exact:true})).toHaveValue('Former Example');
+  await expect(linkedJob.locator('.version').first().getByText('Preferred version',{exact:true})).toBeVisible();
+  await linkedJob.getByRole('button',{name:'Make primary'}).click();
+  await expect(jobs.first().getByLabel('Company',{exact:true})).toHaveValue('\u793a\u4f8b');
+  await expect(jobItems.first().getByRole('button',{name:'Make primary'})).toHaveCount(0);
   assert.equal(await addresses.count(),2);
   await addressSection.getByRole('button',{name:'Link with…'}).first().click();
   await addressSection.locator('.link-picker').getByRole('button',{name:/Address 2/}).click();
@@ -79,6 +95,8 @@ test('integration controls, metadata history, all downloads and fictional re-ext
   await page.getByRole('button',{name:'Add jobs',exact:true}).click();
   assert.equal(await jobItems.last().getByLabel('Job status').inputValue(),'current');
   await reviews.first().check();await page.locator('#export').click();
+  await expect(page.locator('#mode')).toHaveValue('structured');
+  await expect(page.locator('#modeHelp')).toContainText('For modified Monica');
   const downloads=new Map();
   for(const mode of ['monica','structured'])for(const zip of [false,true]){
    await page.locator('#mode').selectOption(mode);const saving=page.waitForEvent('download');await page.locator(zip?'#individual':'#combined').click();const bytes=await readFile(await(await saving).path());
@@ -90,6 +108,9 @@ test('integration controls, metadata history, all downloads and fictional re-ext
    }
    if(zip)assert.equal(text,downloads.get(mode));else downloads.set(mode,text);
    assert.equal(card.getAllProperties('org').length,mode==='structured'?3:1);
+   assert.equal(card.getFirstPropertyValue('title'),'\u987e\u95ee');
+   if(mode==='structured')assert.equal(card.getAllProperties('title')[1].getFirstValue(),'Advisor');
+   else assert.match(card.getFirstPropertyValue('note'),/Other job: Example .* Advisor/);
    assert.match(card.getFirstPropertyValue('note'),/whatsapp: 555-0111/i);assert.match(card.getFirstPropertyValue('note'),/fictional-other/);
    assert.doesNotMatch(card.getFirstPropertyValue('note'),/Other job: *— *(?:\n|$)/);
    if(mode==='structured'){assert.deepEqual(card.getAllProperties('x-c2v-job-status').map(r=>r.getFirstValue()),['current','former']);assert.equal(card.getAllProperties('org')[0].getParameter('altid'),'job1-org');const social=card.getAllProperties('x-socialprofile');assert.equal(social.length,3);assert.equal(social[1].getParameter('x-c2v-phone'),'phone1');assert.equal(social[1].getFirstValue(),'555-0111');assert.equal(social[2].getParameter('x-c2v-phone'),undefined);}
