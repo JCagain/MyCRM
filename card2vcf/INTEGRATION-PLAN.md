@@ -1,6 +1,6 @@
 # card2vcf integration implementation plan
 
-Status: converter implementation and verification completed 2026-11-17; modified-Monica fictional integration completed 2026-11-18. Prepared 2026-11-13. Requirements: [card2vcf integration scope](SPEC.md#planned-integration-with-modified-monica) and its linked Monica sections. Current delivery/deployment status and evidence belong in the [implementation record](../docs/IMPLEMENTATION.md). The [original plan](PLAN.md) remains historical.
+Status: converter implementation and verification completed 2026-11-17; modified-Monica fictional integration completed 2026-11-18. Prepared 2026-11-13. Requirements: [card2vcf integration scope](SPEC.md#integration-with-modified-monica) and its linked Monica sections. Current delivery/deployment status and evidence belong in the [implementation record](../docs/IMPLEMENTATION.md). The [original plan](PLAN.md) remains historical.
 
 This plan specifies implementation decisions and execution order; the linked specs remain the authority for product behavior. Its [wire contract](#wire-contract) is the single reference for the new exporter/importer encoding. The [Monica implementation plan](../docs/MONICA-PLAN.md) references it rather than duplicating it.
 

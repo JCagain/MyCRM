@@ -1,8 +1,7 @@
 # Monica build, verification and deployment
 
-Status: fictional implementation/upgrade verification and approved live schema compatibility check passed; production deployment pending.
 Requirements and acceptance gates: [specification](MONICA-SPEC.md) and [plan](MONICA-PLAN.md).
-Delivery evidence: [implementation record](IMPLEMENTATION.md#verification).
+Delivery status and evidence are in the [implementation record](IMPLEMENTATION.md).
 
 ## Reproduce fictional verification
 
@@ -38,7 +37,7 @@ This [check](../deploy/monica/image-smoke.ps1) temporarily stops the fictional a
 
 ## Later upgrade procedure
 
-These steps operate on production and are for the user's later deployment task. Do not apply the override until all plan exit checks pass and the user schedules the change.
+Use these steps for an authorized live upgrade. For routine container recreation after an upgrade, keep the same image override by running `docker compose -f compose.yaml -f deploy/monica/compose.organization.yaml up -d --no-build` from the repository root.
 
 1. Check source/version and schema metadata against the pinned baseline. Confirm migration history, actual MariaDB version and available disk space. Resolve differences before migration. Keep the current application image locally available.
 2. Put the current app in maintenance mode with `php artisan down`. Stop scheduled jobs, queue workers and any external API/CardDAV writers. Ensure no process can write during backup, migration or recovery.
@@ -59,4 +58,4 @@ The [fictional rehearsal](../deploy/monica/rehearsal.ps1) creates a unique isola
 powershell -NoProfile -ExecutionPolicy Bypass -File deploy/monica/rehearsal.ps1
 ```
 
-It stops its containers afterward and retains the fictional named volumes and ignored backups for review. It never loads production environment values or mounts. Evidence, the completed metadata-only live schema check and pending deployment boundary are recorded in the [implementation record](IMPLEMENTATION.md#verification).
+It stops its containers afterward and retains the fictional named volumes and ignored backups for review. It never loads production environment values or mounts. See the [implementation record](IMPLEMENTATION.md#verification) for verification results.

@@ -1,6 +1,6 @@
 # Monica and card2vcf repair plan
 
-Source repairs and fictional verification completed on 2026-11-18. The implementation review found seven gaps. Five reproduced with fictional data. The CardDAV logging and import-report findings came from tracing the source and now have regression tests. Production deployment remains pending. [Verification results](IMPLEMENTATION.md#verification)
+Source repairs and fictional verification completed on 2026-11-18. The implementation review found seven gaps. Five reproduced with fictional data. The CardDAV logging and import-report findings came from tracing the source and now have regression tests. [Verification results](IMPLEMENTATION.md#verification)
 
 Work through the items below in order. For each item, reproduce the failure against the current implementation, make the smallest change that fixes it, and retain the regression test. Use the [Monica spec](MONICA-SPEC.md), [converter spec](../card2vcf/SPEC.md) and [wire contract](../card2vcf/INTEGRATION-PLAN.md#wire-contract) as the requirements. The choices below describe how to implement the repairs.
 

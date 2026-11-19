@@ -24,7 +24,7 @@ Use Node.js for a small local HTTP server and plain HTML/CSS/JavaScript for the 
 - Add only dependencies with a clear purpose, such as offline Chinese conversion and ZIP creation. Lock resolved versions during implementation.
 - Interface text: English initially; all contact fields support Unicode.
 
-The original combined-text bilingual default is superseded. See [Contact model and review](SPEC.md#contact-model-and-review) and [planned integration](SPEC.md#planned-integration-with-modified-monica) for the current requirements.
+The original combined-text bilingual default is superseded. See [Contact model and review](SPEC.md#contact-model-and-review) and [integration requirements](SPEC.md#integration-with-modified-monica) for the current requirements.
 
 ## 1. Establish the project and test harness
 

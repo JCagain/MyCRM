@@ -1,6 +1,6 @@
 # card2vcf — version one specification
 
-The existing converter requirements are supplemented by the [planned integration with modified Monica](#planned-integration-with-modified-monica). For implementation status and direct changes not specified here, see the [implementation record](../docs/IMPLEMENTATION.md).
+The existing converter requirements are supplemented by the [integration with modified Monica](#integration-with-modified-monica). For implementation status and direct changes not specified here, see the [implementation record](../docs/IMPLEMENTATION.md).
 
 ## Purpose and privacy
 Convert business-card images and self-introduction screenshots to reviewed vCard files using a local multimodal llama.cpp server. No Monica connection, automatic import, automatic matching of duplicate people, or relationship management.
@@ -21,7 +21,7 @@ A local browser application bound to 127.0.0.1. Keep one main workspace: a perso
 
 ## Contact model and review
 - Multiple names per person, preserving each printed spelling. Main/display name contains only names originally printed on the cards, combined when necessary using a single space (no slash or other separator), for example `陳大文 David Chan`, and editable by the user. Generated simplified variants remain alternate names and are exported to NICKNAME for Monica search, not inserted into the main name. Preserve genuine nicknames alongside these variants. Version one exports the complete chosen main name as the N given-name component and leaves other components empty; separate surname/given-name editing is not exposed. Export mapping must preserve the combined main name without relying on Monica honoring FN when N is also present.
-- Multiple structured company/title pairs, one marked primary. Preserve all pairs in session state and export as specified below. Keep different printed language versions separate; the planned Monica integration adds explicit links between language alternatives.
+- Multiple structured company/title pairs, one marked primary. Preserve all pairs in session state and export as specified below. Keep different printed language versions separate and support explicit language links as specified below.
 - Multiple phones, emails, WeChat accounts, addresses, websites, and other social accounts, with editable labels where relevant. WeChat has its own repeatable section after email. Recognize WeChat, Weixin, Chinese WeChat names, and standalone VX/vx or WX/wx labels. Use a phone number for WeChat only when the source explicitly states that relationship.
 - Free-text notes. All fields can be manually added, edited, or deleted.
 - Review each person against all associated card images. Only reviewed people may be exported. Applying extraction results or changing grouping invalidates review. Deliberate manual edits and batch First met edits retain existing approval; they do not automatically approve an unreviewed person. Undo/Redo restores the corresponding review state. Session lifetime is independent of review status.
@@ -37,25 +37,15 @@ Session only; no project save/open, autosave, localStorage, IndexedDB, or server
 - Offer one combined VCF and individual VCFs for selected reviewed people.
 - Use UTF-8 vCard 4.0 with correct escaping, CRLF endings, and UTF-8-safe line folding.
 - Export one contact per person, with a stable UID across re-exports within the same session. A new session creates new identities; no cross-session deduplication is promised.
-- Preserve multiple company/title pairs as grouped ORG/TITLE fields in Structured mode, primary first. Use this existing mode for the planned modified Monica importer. Retain the Monica-compatible export option, which uses only the primary structured pair and preserves alternatives in labelled NOTE text for stock Monica compatibility.
+- Preserve multiple company/title pairs as grouped ORG/TITLE fields in Structured mode, primary first. Retain the Monica-compatible export option, which uses only the primary structured pair and preserves alternatives in labelled NOTE text for stock Monica compatibility.
 - WeChat IDs are exported as X-WECHAT text extensions with labelled NOTE fallbacks. Stock Monica 4.1.2 does not import the extension as a contact field; disclose this in review/export.
 - Meeting details and information without reliable dedicated-field import support are preserved in labelled NOTE text. Make the fallback visible before export.
-- Stock Monica 4.1.2's standard work editor and VCF importer use a single flat company/title pair; its backend already has Company and Occupation models. The planned modified importer will use those existing models for structured multiple-job import. Do not promise that other importers preserve every repeated/grouped field or multiple names. Validate the chosen name mapping with fictional multilingual examples before finalizing it.
+- Stock Monica 4.1.2's standard work editor and VCF importer use a single flat company/title pair; its backend already has Company and Occupation models. Do not promise that other importers preserve every repeated/grouped field or multiple names. Validate the chosen name mapping with fictional multilingual examples before finalizing it.
 - Embed every original source image as a vCard 4.0 PHOTO data URI in both combined and individual VCFs, in source-card order. Preserve original bytes without resizing, cropping, or applying review rotation. The first photo is the Monica avatar candidate; Monica 4.1.2 may ignore additional PHOTO fields. Text preview omits image payloads and explicitly says so. No automatic relationship links.
 
-## Planned integration with modified Monica
+## Integration with modified Monica
 
-Follow the [shared VCF requirements and acceptance checks](../docs/MONICA-SPEC.md#shared-card2vcf-to-monica-vcf-requirements). Current converter/importer delivery status, evidence and deployment boundaries are in the [implementation record](../docs/IMPLEMENTATION.md).
-
-- Multilingual editing, language linking/unlinking in both apps, display and person-only unlink scope follow the [Monica multilingual requirements](../docs/MONICA-SPEC.md#multilingual-entries). Extraction and exact-field deduplication must not infer translation equivalence.
-- Use the existing Structured export for modified Monica. Reuse grouped ORG/TITLE pairs for all jobs, retaining the primary selection, and add support for explicit language-alternative links.
-- Add per-job status editing and export using the [shared job-status rules](../docs/MONICA-SPEC.md#companies-and-jobs).
-- Export explicitly supplied LinkedIn/WhatsApp service values as structured properties; Notes-only export does not satisfy the shared requirements. Preserve an explicit WhatsApp phone association where supplied. Retain X-WECHAT and its existing Notes fallback.
-- Verify the exact property/parameter syntax together with Monica's importer in the implementation plan, including job status, language links and job pairing. Do not claim that stock Monica understands the new mapping.
-- Retain the existing Monica-compatible mode and default selection, including its primary-job/Notes fallback. Existing name, phone, email, website, First met, Notes and original-photo behavior remains in place.
-- Validate the shared acceptance checks with fictional contacts exported by card2vcf and imported into modified Monica, in both combined and individual downloads.
-
-See the [implementation record](../docs/IMPLEMENTATION.md) for current status.
+The [Monica specification](../docs/MONICA-SPEC.md#shared-card2vcf-to-monica-vcf-requirements) defines shared requirements and acceptance checks for both applications. The [integration plan](INTEGRATION-PLAN.md#wire-contract) defines the wire contract.
 
 ## Local model connection
 Initial server: OpenAI-compatible llama.cpp endpoint http://127.0.0.1:9931/v1, model alias qwen3.8-27b, with its multimodal projector enabled. Keep API key outside source control and logs. Allow endpoint/model/key configuration through a small local configuration mechanism; no elaborate settings UI. Local-only connections by default. Model startup and GPU configuration remain external to the application.

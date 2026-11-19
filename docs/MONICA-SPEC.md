@@ -1,6 +1,6 @@
 # Monica modification specification
 
-Status: draft for review, updated 2026-11-13. This document records the agreed requirements. For implementation status, see the [implementation record](IMPLEMENTATION.md).
+This document records the agreed requirements. For implementation and deployment status, see the [implementation record](IMPLEMENTATION.md).
 
 ## Baseline and working rules
 
@@ -63,7 +63,7 @@ Source references:
 - WeChat and LinkedIn are repeatable contact methods with their own editable fields.
 - Reuse Monica's existing configurable contact-field mechanism and existing LinkedIn/WhatsApp support where suitable.
 - WhatsApp can reuse a selected phone number or store a different number. The user explicitly chooses the association; do not assume every phone number supports WhatsApp.
-- Extend both card2vcf export and Monica import so these methods arrive in contact fields, following the [shared VCF requirements](#shared-card2vcf-to-monica-vcf-requirements). card2vcf currently exports WeChat as X-WECHAT plus a Notes fallback; LinkedIn/WhatsApp entries in its social fields currently appear only in Notes.
+- Extend both card2vcf export and Monica import so these methods arrive in contact fields, following the [shared VCF requirements](#shared-card2vcf-to-monica-vcf-requirements).
 - Preserve card2vcf's dedicated WeChat field and recognition of WeChat, Weixin, Chinese WeChat names, VX/vx and WX/wx labels.
 
 ### Multilingual entries
@@ -76,8 +76,6 @@ Source references:
 - If the VCF does not explicitly link entries as language alternatives, keep them separate until the user manually links them. Provide manual linking/unlinking controls in both card2vcf and Monica.
 - Unlinking affects only that person's language-alternative grouping. It must not remove shared company names/aliases, split the shared company record or change another person's entries or memberships. Company-name matching must not automatically undo that person's explicit unlink.
 - Company-name matching follows the separate exact-match rule above; it does not infer a new translation relationship.
-- The current card2vcf exact-field deduplication preserves different language entries but does not create language links. Coordinate converter/export and importer changes through the [shared VCF requirements](#shared-card2vcf-to-monica-vcf-requirements) to support the agreed multilingual behavior.
-- The exact VCF mapping remains an implementation detail to verify. vCard 4.0 LANGUAGE and ALTID are the discussed mechanisms for language alternatives; they are not currently handled by stock Monica's importer. [vCard standard](https://www.rfc-editor.org/rfc/rfc6350.html#section-5.4)
 - Preserve the established personal-name policy: combine printed names in the main name using a single space, without a slash. Generated traditional-to-simplified personal-name variants remain alternate names exported through NICKNAME, alongside genuine nicknames. Do not generate reverse conversions or English translations.
 
 ### Past interactions and last contacted
@@ -97,7 +95,7 @@ Source references:
 
 ## Shared card2vcf-to-Monica VCF requirements
 
-This section connects the [card2vcf specification](../card2vcf/SPEC.md#planned-integration-with-modified-monica) with the Monica changes above. These are planned integration requirements, not claims about the current deployment.
+This section defines shared requirements for the converter and Monica importer. The [wire contract](../card2vcf/INTEGRATION-PLAN.md#wire-contract) defines the encoding.
 
 Use the existing Structured export as the path for the agreed structured fields into modified Monica. Retain the existing Monica-compatible export and its default selection for stock Monica compatibility: it emits one primary company/title pair and preserves other jobs in Notes. Combined and individual VCF downloads must use the same field mapping.
 
@@ -108,10 +106,6 @@ Use the existing Structured export as the path for the agreed structured fields 
 | WeChat | Retain repeatable X-WECHAT values and the existing labelled Notes fallback. | Import X-WECHAT values into WeChat contact fields. |
 | LinkedIn and WhatsApp | Export the explicitly supplied service and value as structured contact properties. Notes alone do not meet this requirement. Preserve an explicit WhatsApp/phone association where supplied; never infer one just because numbers match. | Import the properties into the corresponding contact fields, reusing existing social-profile handling where suitable. Support the agreed explicit WhatsApp phone association. |
 | Company names, job titles and addresses in multiple languages | Preserve separate printed versions and explicitly supplied language-alternative links. Keep distinct jobs/addresses and unlinked variants separate. | Respect explicit links, show linked variants together, and allow manual linking/unlinking. Unlinked entries remain separate until linked by the user, subject to the agreed company-name matching rule. |
-
-Current source status: card2vcf already exports grouped jobs in Structured mode, repeated ADR fields, and X-WECHAT. LinkedIn/WhatsApp entries in its social fields currently go only into Notes, and it does not encode language-alternative links. Stock Monica's importer reads a single flat company/title pair and has socialProfile handling for LinkedIn/WhatsApp; that does not establish compatibility with card2vcf's current Notes-only social export.
-
-The implementation plan must settle the matching exporter/importer syntax for per-job status, LinkedIn/WhatsApp, explicit WhatsApp phone associations, and language links, including how a multilingual company/title pair stays associated with its job. LANGUAGE and ALTID are the discussed vCard 4.0 mechanisms for language alternatives. Their exact use with job grouping must be verified before implementation. These are encoding details for the agreed fields, not additional product requirements.
 
 Keep the existing handling of phones, emails, websites, Notes, First met information and original PHOTO data. This integration does not add a live Monica connection or automatic import to card2vcf. First met remains in the existing export mapping; later interaction recording and last-contact calculation belong to Monica. Company groups, tag categories, ratings and batch tag/rating edits remain Monica features.
 

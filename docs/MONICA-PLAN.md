@@ -1,6 +1,6 @@
 # Monica implementation plan
 
-Status: implemented in source, verified with fictional data and checked against approved live schema metadata; production deployment remains pending. Prepared 2026-11-17; implementation update 2026-11-18. Requirements: [Monica specification](MONICA-SPEC.md). Delivery evidence belongs in the [implementation record](IMPLEMENTATION.md). Reproduction and deployment: [runbook](MONICA-RUNBOOK.md). The [card2vcf wire contract](../card2vcf/INTEGRATION-PLAN.md#wire-contract) is authoritative for exporter/importer encoding.
+Prepared 2026-11-17 and updated 2026-11-18. Requirements are in the [Monica specification](MONICA-SPEC.md). Delivery status and verification are in the [implementation record](IMPLEMENTATION.md). Reproduction and deployment: [runbook](MONICA-RUNBOOK.md). The [card2vcf wire contract](../card2vcf/INTEGRATION-PLAN.md#wire-contract) is authoritative for exporter/importer encoding.
 
 ## Review outcome and boundaries
 
@@ -8,9 +8,7 @@ For defects found in the subsequent implementation review, follow the [repair pl
 
 No blocking contradiction was found between the two specifications and the converter integration plan. The contract separates job pairing from language alternatives, preserves explicit phone associations, and retains the compatible export path. Omitting guessed LANGUAGE tags is consistent with the agreed language behavior; ALTID alone can express alternatives ([RFC 6350](https://www.rfc-editor.org/rfc/rfc6350.html#section-5.4)).
 
-The converter and modified importer now pass fictional application integration, including actual browser combined downloads and ZIP entries in both modes; use the [converter handoff](../card2vcf/INTEGRATION-PLAN.md#verification-and-importer-handoff) and [implementation evidence](IMPLEMENTATION.md#verification). Production validation remains separate.
-
-The initial review used public upstream v4.1.2 sources. Implementation subsequently audited the pinned checkout, isolated runtime schema and upstream test tooling. Deployed public-source hashes match that baseline. Following explicit user approval, live version/schema metadata was compared with the fictional environment; results and the non-blocking difference are in the implementation record. No real contact records or card files were inspected. Production migration/service switching remains a later task.
+See the [converter handoff](../card2vcf/INTEGRATION-PLAN.md#verification-and-importer-handoff) and [implementation record](IMPLEMENTATION.md#verification) for integration, baseline and schema evidence.
 
 ## Implementation decisions
 
@@ -134,7 +132,7 @@ Exit: actual exporter output passes the complete shared checks in a clean fictio
 - [x] Build a versioned custom image and prepare the compose override without switching the current deployment; retain loopback binding and existing storage paths.
 - [x] Rehearse upgrade, database/storage backup and restoration under the old image on fictional data using the MariaDB 11 image; provide the deployment/recovery runbook.
 - [x] Require a completed matching backup before eventual migration and restoration with the prior image for rollback; down-migrations intentionally refuse destructive removal.
-- [ ] Leave production real-data processing/import verification to the user under the working rules. Keep deployment pending until that later task; do not inspect backup contents.
-- [x] Update the implementation record with spec references/evidence and add source/startup/runbook links to the documentation index, separating implementation from pending production gates.
+- [ ] Leave production real-data processing and import verification to the user under the [working rules](MONICA-SPEC.md#baseline-and-working-rules).
+- [x] Update the implementation record with spec references/evidence and add source/startup/runbook links to the documentation index, linking to the runbook for deployment.
 
 Exit: implementation delivery is backed by reproducible fictional tests, and deployment has an independently reviewable runbook. Planning completion alone is not implementation or deployment completion.
