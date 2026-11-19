@@ -1,6 +1,6 @@
 # Implementation record
 
-Updated: 2026-11-18. Maintenance rules: [AGENTS.md](../AGENTS.md).
+Updated: 2026-11-19. Maintenance rules: [AGENTS.md](../AGENTS.md).
 
 ## Status
 
@@ -9,9 +9,21 @@ Repairs for the seven findings from the 2026-11-18 implementation review are in 
 | Scope | State | Evidence |
 | --- | --- | --- |
 | [Existing card2vcf specification](../card2vcf/SPEC.md), excluding its integration section and explicitly future clauses | Implemented in source | Baseline commit `2a0e200`; subsequent changes in `207df4f`. |
+| [First extraction of combined cards](../card2vcf/SPEC.md#first-extraction-of-combined-cards) and [reviewing job and address variants](../card2vcf/SPEC.md#reviewing-job-and-address-variants) | Implemented in source and verified with fictional fixtures on 2026-11-19 | [Implementation plan](../card2vcf/COMBINED-CARD-REVIEW-PLAN.md), [domain regressions](../card2vcf/tests/combined-review.test.mjs), [batch and retry browser tests](../card2vcf/tests/browser/combined-review.test.mjs), [layout and download browser test](../card2vcf/tests/browser/integration.test.mjs). Passed 32 unit tests, 7 Edge browser tests, and the Sabre/vObject 4.5.4 export contract. |
+| C2V people sidebar | Matched the [approved stacked demo](../stacked-link-with-demo.html) in the live app | [Workflow test](../card2vcf/tests/browser/workflow.test.mjs) verifies control labels, row placement, and the 16 px selection count. All 7 Edge browser tests passed, including layout checks at 1440, 1100, 800, and 390 px. |
 | [card2vcf integration scope](../card2vcf/SPEC.md#integration-with-modified-monica) | Converter implemented; actual downloads verified through the modified importer | [Converter handoff](../card2vcf/INTEGRATION-PLAN.md#verification-and-importer-handoff), [application integration tests](../monica/tests/Feature/OrganizationTest.php), [committed-photo check](../monica/tests/Browser/committed-import.php). Converter baseline committed in `2546ace`. |
 | [Monica modification specification](MONICA-SPEC.md) | Implemented and verified | [Plan](MONICA-PLAN.md), [pinned source](../monica/UPSTREAM.md), [reproducible verification](MONICA-RUNBOOK.md). The user approved metadata-only access; no real contact records or card files were inspected. |
 | [Local deployment configuration](../compose.yaml) | Verified repair image deployed to the local instance on 2026-11-18 | [Prepared override](../deploy/monica/compose.organization.yaml), [deployment/recovery runbook](MONICA-RUNBOOK.md). [Live deployment verification](#live-deployment) |
+
+## Local demo changes
+
+- On 2026-11-19, the local `stacked-same-job-demo.html` moved the selection count directly below the selection controls and placed **Mark reviewed** and **Delete** on one row above **Set first met**. The contact review checkboxes read **Reviewed**, and the job dropdowns read **Status**. Verified in Edge at 1440 px and 390 px viewport widths.
+
+- The local demo’s left panel uses **Link** and **Detach** for the two card actions and displays the selection count at 16 px. Verified the labels, font size, and button alignment in Edge at 1440 px and 390 px viewport widths.
+
+- The local demo centers **Primary job** in the job’s top bar. Verified in Edge at 1440 px, 390 px, and 320 px before linking, after linking, and after unlinking job versions.
+
+- Restored the **Status** dropdown to its original horizontal position in the local demo. **Primary job** stays centered and uses its own line within the top bar when space is tight. Verified in Edge with linked and separate job versions at desktop and mobile widths.
 
 ## Monica implementation evidence
 
@@ -34,6 +46,8 @@ The repair adds two outcomes to the import workflow. When structured Replace can
 The additions below are implemented in source. The specification remains authoritative for behavior it already describes.
 
 ### Review layout and batch actions
+
+The bullets below record the original delivery. The current sidebar labels and layout are linked from [Status](#status).
 
 - Long people lists scroll within the selection panel, with the selection count and batch controls above the scrolling area. Verified that the last of 30 fictional entries can be selected and cleared on desktop and narrow screens.
 - Detach cards sits beside Combine. First met batch editing is in the selection area rather than the page header.

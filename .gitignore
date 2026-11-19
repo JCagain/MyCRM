@@ -3,6 +3,7 @@
 !/.gitignore
 !/README.md
 !/AGENTS.md
+!/stacked-link-with-demo.html
 !/compose.yaml
 !/.env.example
 !/card2vcf/

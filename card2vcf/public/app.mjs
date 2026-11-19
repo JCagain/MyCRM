@@ -1,12 +1,12 @@
-import {initialize,statuses,link,unlink,setStatus,primary,associate,remove,socialValue} from './contact-metadata.mjs';
-import {socialService} from './fields.mjs';
-const rowSelection=new Map();
-import {History,person,keys,combine,detach,applyExtraction,addSimplified,displayName,batch,signature} from './domain.mjs';
+import {initialize,groups,statuses,link,unlink,setStatus,primary,associate,remove,socialValue} from './contact-metadata.mjs';
+import {socialService,fieldIdentity} from './fields.mjs';
+import {History,person,keys,combine,detach,reconcileRead,resolveProposal,manualChange,editNotes,suggestedPair,separatePair,addSimplified,displayName,batch,signature} from './domain.mjs';
 import {vcard} from './vcard.mjs';
 import {fields as definitions} from './fields.mjs';
 import {zipSync,strToU8} from '/zip.mjs';
 const $=s=>document.querySelector(s),h=new History(),assets=new Map(),exports=new Map(),selection=new Set(),cardSelection=new Set();
-let active=null,busy=false,controller=null,cancelled=false,pendingEdits=false,exporting=false;
+let active=null,busy=false,controller=null,cancelled=false,exporting=false;
+let picker=null,pendingEdit=null,fieldRender=null,pointerDown=false,fieldRenderPending=false;
 const failures=new Map();const outcomes=new Map(); let retryOnly=false;
 const session=await fetch('/session').then(r=>r.json());
 const convert=OpenCC.Converter({from:'t',to:'cn'});
@@ -16,7 +16,34 @@ const selected=()=>h.state.filter(p=>selection.has(p.id));
 function el(tag,text,attrs={}){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;Object.assign(e,attrs);return e;}
 function button(text,fn){const b=el('button',text,{type:'button'});b.onclick=fn;return b;}
 function change(fn){h.change(fn);render();}
-function field(parent,label,value,fn,type='text'){const l=el('label',label),input=el(type==='textarea'?'textarea':'input',undefined,{value:value??''});if(type!=='textarea')input.type=type;input.oninput=()=>{pendingEdits=true;updateWarning();};input.onchange=()=>{pendingEdits=false;change(()=>fn(input.value));};l.append(input);parent.append(l);return input;}
+function scheduleFieldRender(){
+ fieldRenderPending=true;
+ if(!pointerDown&&fieldRender===null)fieldRender=setTimeout(()=>render(),0);
+}
+document.addEventListener('pointerdown',()=>{pointerDown=true;},true);
+for(const event of ['pointerup','pointercancel'])window.addEventListener(event,()=>{
+ pointerDown=false;
+ if(fieldRenderPending)scheduleFieldRender();
+},true);
+function field(parent,label,value,fn,{type='text',key,row,column}={}){
+ const l=el('label',label),input=el(type==='textarea'?'textarea':'input',undefined,{value:value??''});
+ if(type!=='textarea')input.type=type;
+ const owner=active;
+ const identity=()=>row?fieldIdentity(key,row):null;
+ input.dataset.focus=JSON.stringify([owner,key,row?.id,column]);
+ input.oninput=()=>{
+  pendingEdit={owner,key,rowId:row?.id,identity:identity(),input};
+  updateWarning();
+ };
+ const commit=()=>{
+  pendingEdit=null;
+  h.change(()=>fn(input.value));
+  scheduleFieldRender();
+ };
+ input.onchange=commit;
+ input.onblur=()=>{if(pendingEdit?.input===input)commit();};
+ l.append(input);parent.append(l);return input;
+}
 function contentChange(p){p.revision++;}
 function selectionControls(){
  const count=selected().length,p=current();
@@ -45,46 +72,271 @@ function reviewActions(p){
  actions.append(review,remove);return actions;
 }
 function render(){
+ clearTimeout(fieldRender);fieldRender=null;fieldRenderPending=false;
+ const focused=document.activeElement;
+ const focusKey=focused?.dataset.focus;
+ const draft=pendingEdit?.input===focused?pendingEdit:null;
+ const typed=draft?focused.value:null;
+ const caret=draft?[focused.selectionStart,focused.selectionEnd,focused.selectionDirection]:null;
+ if(draft){focused.onblur=null;focused.onchange=null;}
  if(!current())active=h.state[0]?.id;
  for(const id of selection)if(!h.state.some(p=>p.id===id))selection.delete(id);
  for(const id of cardSelection)if(!current()?.cards.includes(id))cardSelection.delete(id);
  const list=$('#people');list.replaceChildren();for(const p of h.state){const row=el('div',undefined,{className:'person'+(p.id===active?' active':'')});const c=el('input',undefined,{type:'checkbox',checked:selection.has(p.id)});c.setAttribute('aria-label','Select '+(displayName(p)||'Draft'));c.onchange=()=>{c.checked?selection.add(p.id):selection.delete(p.id);selectionControls();};const b=button(displayName(p)||assets.get(p.cards[0])?.name||'Draft',()=>{active=p.id;render();});b.append(el('small',`${p.cards.length} card(s) · ${p.reviewed?'Reviewed':'Needs review'}`));if(p.cards.some(id=>outcomes.get(id)==='failed'))b.append(el('small','Extraction failed · retry available'));row.append(c,b);list.append(row);}
  $('#undo').disabled=!h.past.length||busy;$('#redo').disabled=!h.future.length||busy;$('#extract').disabled=busy;$('#cancel').disabled=!busy;$('#retry').disabled=busy;$('#combine').disabled=busy;$('#files').disabled=busy;
- selectionControls();renderImages();renderEditor();updateWarning();
+ selectionControls();renderImages();renderEditor();
+ const replacement=focusKey&&[...$('#editor').querySelectorAll('[data-focus]')].find(e=>e.dataset.focus===focusKey);
+ if(replacement){
+  if(draft){replacement.value=typed;pendingEdit={...draft,input:replacement};}
+  replacement.focus({preventScroll:true});
+  if(caret?.[0]!=null)replacement.setSelectionRange(...caret);
+ }else if(draft)pendingEdit=null;
+ updateWarning();
  const referenced=new Set([...h.state,...h.past.flat(),...h.future.flat()].flatMap(p=>p.cards));
  for(const [id,a] of assets)if(!referenced.has(id)){URL.revokeObjectURL(a.url);assets.delete(id);}
 
 }
-function renderImages(){const pane=$('#images'),p=current();pane.replaceChildren();if(!p){pane.append(el('p','Add card images to begin.'));return;}pane.append(el('h2','Source cards'));if(p.cards.length>1)pane.append(el('p','Tick cards here, then use Detach cards beside Combine.',{className:'hint'}));for(const id of p.cards){const a=assets.get(id);if(!a)continue;const row=el('div',undefined,{className:'card'});const label=el('label',a.name),check=el('input',undefined,{type:'checkbox',checked:cardSelection.has(id),disabled:busy});check.onchange=()=>check.checked?cardSelection.add(id):cardSelection.delete(id);label.prepend(check);const img=el('img',undefined,{src:a.url,alt:'Source card'});const open=el('a','Open full image',{href:a.url,target:'_blank',rel:'noopener'});row.append(label,img,open,button('Rotate',()=>{if(busy)return status('Cancel extraction before rotating.');a.rotation=(a.rotation+90)%360;img.style.transform=`rotate(${a.rotation}deg)`;}));if(failures.has(id))row.append(el('p',failures.get(id),{className:'warning'}));pane.append(row);}}
+function renderImages(){const pane=$('#images'),p=current();pane.replaceChildren();if(!p){pane.append(el('p','Add card images to begin.'));return;}pane.append(el('h2','Source cards'));if(p.cards.length>1)pane.append(el('p','Tick cards here, then use Detach beside Link.',{className:'hint'}));for(const id of p.cards){const a=assets.get(id);if(!a)continue;const row=el('div',undefined,{className:'card'});const label=el('label',a.name),check=el('input',undefined,{type:'checkbox',checked:cardSelection.has(id),disabled:busy});check.onchange=()=>check.checked?cardSelection.add(id):cardSelection.delete(id);label.prepend(check);const img=el('img',undefined,{src:a.url,alt:'Source card'});const open=el('a','Open full image',{href:a.url,target:'_blank',rel:'noopener'});row.append(label,img,open,button('Rotate',()=>{if(busy)return status('Cancel extraction before rotating.');a.rotation=(a.rotation+90)%360;img.style.transform=`rotate(${a.rotation}deg)`;}));if(failures.has(id))row.append(el('p',failures.get(id),{className:'warning'}));row.append(...sourceWarnings(p,id));pane.append(row);}}
 const fieldNames={wechats:'WeChat'};
-function renderEditor(){const pane=$('#editor'),p=current();pane.replaceChildren();if(!p)return;const heading=el('div',undefined,{className:'editor-heading'});heading.append(el('h2','Contact review'),reviewActions(p));pane.append(heading);
- field(pane,'Main name (printed names, separated by spaces)',displayName(p),v=>{p.display=v;contentChange(p);});
- for(const view of [...keys.filter(k=>k!=='socials'),'linkedin','whatsapp','socials']){
-  const service=['linkedin','whatsapp'].includes(view)?view:null,k=service?'socials':view;
-  const selectedRows=rowSelection.get(p.id+':'+k)??new Set();rowSelection.set(p.id+':'+k,selectedRows);
-  const section=el('div',undefined,{className:'field-section'}),heading=el('div',undefined,{className:'field-heading'});
-  heading.append(el('h3',service==='linkedin'?'LinkedIn':service==='whatsapp'?'WhatsApp':fieldNames[k]??k[0].toUpperCase()+k.slice(1)),button('Add '+(service==='linkedin'?'LinkedIn':service==='whatsapp'?'WhatsApp':fieldNames[k]??k),()=>change(()=>{p[k].push({...Object.fromEntries(definitions[k].map(f=>[f,''])),origin:'manual',edited:true,...(service?{label:service}:{})});initialize(p);contentChange(p);})));
-  section.append(heading);
-  if(['jobs','addresses'].includes(k))heading.append(button('Link selected language variants',()=>{try{const ids=[...selectedRows];const probe=structuredClone(p);link(probe,k,ids);change(()=>link(p,k,ids));selectedRows.clear();}catch(e){status(e.message);}}));
-  if(k==='wechats')section.append(el('p','WeChat IDs are preserved in Monica Notes on import.',{className:'hint'}));
-  p[k].forEach((r,i)=>{
-   if(k==='socials'&&(service?socialService(r.label)!==service:['linkedin','whatsapp'].includes(socialService(r.label))))return;
-   const row=el('div',undefined,{className:'row row-'+k});
-   if(k==='names')row.append(el('small',r.origin==='generated'?'Generated simplified · editable':'Printed / manually entered'));
-   if(['jobs','addresses'].includes(k)){const label=el('label','Select variant'),check=el('input',undefined,{type:'checkbox',checked:selectedRows.has(r.id)});check.onchange=()=>check.checked?selectedRows.add(r.id):selectedRows.delete(r.id);label.prepend(check);row.append(label);if(r.alternativeGroupId){row.dataset.languageGroup=r.alternativeGroupId;row.append(el('small','Linked language variant'),button('Unlink language variants',()=>change(()=>unlink(p,k,r.id))));}}
-   if(k==='jobs'){const label=el('label','Job status'),select=el('select');for(const value of statuses)select.append(el('option',value[0].toUpperCase()+value.slice(1),{value,selected:value===r.status}));select.onchange=()=>change(()=>setStatus(p,r.id,select.value));label.append(select);row.append(label);}
-   if(service==='whatsapp'){const label=el('label','Number source'),select=el('select');select.append(el('option','Independent number',{value:''}));for(const phone of p.phones)select.append(el('option',phone.label+' '+phone.value,{value:phone.id}));select.value=r.phoneId??'';select.onchange=()=>change(()=>associate(p,r.id,select.value));label.append(select);row.append(label);}
-   if(k==='jobs')row.append(el('small',i===0?'Primary job':'Additional job'));
-   for(const f of definitions[k]){if(service&&f==='label')continue;const input=field(row,k==='wechats'&&f==='value'?'ID / number':f,service==='whatsapp'&&f==='value'?socialValue(p,r):r[f],v=>{r[f]=v;r.edited=true;contentChange(p);});input.parentElement.className='field-'+f;if(service==='whatsapp'&&r.phoneId&&f==='value')input.disabled=true;}
-   const actions=el('div',undefined,{className:'row-actions'});
-   actions.append(button('Remove',()=>change(()=>{if(k==='names'&&r.origin==='generated')p.suppressed.push(r.value);if(['jobs','addresses','phones','socials'].includes(k))remove(p,k,r.id);else p[k].splice(i,1);contentChange(p);})));
-   if(k==='jobs'&&i>0)actions.append(button('Make primary',()=>change(()=>{primary(p,r.id);})));
-   row.append(actions);section.append(row);
-  });pane.append(section);
+function section(p,key,title,addLabel=key,extra={}){
+ const container=el('div',undefined,{className:'field-section'});
+ const heading=el('div',undefined,{className:'field-heading'});
+ heading.append(el('h3',title),button('Add '+addLabel,()=>change(()=>{
+  p[key].push({...Object.fromEntries(definitions[key].map(f=>[f,''])),id:crypto.randomUUID(),origin:'manual',edited:true,...extra});
+  initialize(p);contentChange(p);
+ })));
+ container.append(heading);
+ return container;
+}
+function proposal(p,item){
+ const box=el('div',undefined,{className:'suggestion'});
+ box.append(el('strong',`Extraction suggestion · ${assets.get(item.card)?.name??'Source card'}`));
+ if(item.value!==undefined){
+  const values=typeof item.value==='string'?[item.value]:definitions[item.key].map(field=>item.value[field]).filter(Boolean);
+  box.append(el('p',values.join(' · ')),button('Accept value',()=>change(()=>resolveProposal(p,item,true,convert))));
  }
- pane.append(button('Add simplified variants',()=>change(()=>{p.suppressed=[];addSimplified(p,convert);contentChange(p);})));field(pane,'Additional nicknames (comma separated)',p.nicknames,v=>{p.nicknames=v;contentChange(p);});field(pane,'Notes',p.notes,v=>{p.notes=v;contentChange(p);},'textarea');pane.append(el('h3','First met'));const firstMet=el('div',undefined,{className:'first-met-fields'});for(const k of ['date','occasion','location','notes'])field(firstMet,k,p.firstMet[k],v=>{p.firstMet[k]=v;contentChange(p);},k==='date'?'date':k==='notes'?'textarea':'text');pane.append(firstMet);
- for(const suggestion of p.suggestions){const row=el('div',undefined,{className:'suggestion'});row.append(el('strong','Extraction suggestions'),el('pre',JSON.stringify(suggestion.data,null,2)));for(const warning of suggestion.data.warnings)row.append(el('p',warning,{className:'warning'}));row.append(button('Accept additional values',()=>change(()=>{applyExtraction(p,suggestion.card,suggestion.data,convert);p.suggestions=p.suggestions.filter(s=>s!==suggestion);})),button('Dismiss',()=>change(()=>{p.suggestions=p.suggestions.filter(s=>s!==suggestion);})));pane.append(row);}
- pane.append(reviewActions(p));
+ if(item.message)box.append(el('p',item.message,{className:'warning'}));
+ box.append(button(item.value===undefined?'Acknowledge':'Dismiss',()=>change(()=>resolveProposal(p,item,false,convert))));
+ return box;
+}
+function sourceWarnings(p,id){
+ const warnings=p.suggestions.filter(item=>item.key==='card'&&item.card===id);
+ return warnings.map(item=>proposal(p,item));
+}
+function socialView(row){
+ const service=socialService(row?.label);
+ return ['linkedin','whatsapp'].includes(service)?service:'socials';
+}
+function renderProposals(parent,p,key,{row,view=key}={}){
+ for(const item of p.suggestions){
+  if(item.key!==key)continue;
+  const target=item.rowId&&p[key].find(r=>r.id===item.rowId);
+  if((target||undefined)!==row||key==='socials'&&socialView(target??item.value)!==view)continue;
+  parent.append(proposal(p,item));
+ }
+}
+function rowFields(parent,p,key,row,{service,printed=false}={}){
+ for(const column of definitions[key]){
+  if(service&&column==='label')continue;
+  const label=printed?({title:'Job title',postal:'Postal code'}[column]??column[0].toUpperCase()+column.slice(1)):key==='wechats'&&column==='value'?'ID / number':column;
+  const input=field(parent,label,service==='whatsapp'&&column==='value'?socialValue(p,row):row[column],value=>{
+   manualChange(p,key,row);
+   if(key==='names'&&row.origin==='generated')p.suppressed.push(row.value);
+   row[column]=value;row.edited=true;contentChange(p);
+  },{key,row,column});
+  input.parentElement.className='field-'+column;
+  if(service==='whatsapp'&&row.phoneId&&column==='value')input.disabled=true;
+ }
+}
+function removeRow(p,key,row){
+ manualChange(p,key,row);
+ if(key==='names'&&row.origin==='generated')p.suppressed.push(row.value);
+ if(['jobs','addresses','phones','socials'].includes(key))remove(p,key,row.id);
+ else p[key]=p[key].filter(item=>item!==row);
+ contentChange(p);
+}
+function jobStatus(p,row,candidateNumber){
+ const label=el('label','Status'),select=el('select');
+ select.setAttribute('aria-label',candidateNumber?'Status for Job '+candidateNumber:'Job status');
+ select.dataset.focus=JSON.stringify([p.id,row.id,candidateNumber?'candidate-status':'status']);
+ for(const value of statuses)select.append(el('option',value[0].toUpperCase()+value.slice(1),{value,selected:value===row.status}));
+ select.onchange=()=>{
+  change(()=>{
+   for(const member of groups(p.jobs).find(group=>group.includes(row)))manualChange(p,'jobs',member);
+   setStatus(p,row.id,select.value);
+  });
+  if(candidateNumber)$('#editor').querySelector(`[data-focus=${CSS.escape(select.dataset.focus)}]`)?.focus({preventScroll:true});
+ };
+ label.append(select);
+ return label;
+}
+function linkEntries(p,key,first,second){
+ const rows=p[key];
+ if(!rows.includes(first)||!rows.includes(second)||first===second||first.alternativeGroupId&&first.alternativeGroupId===second.alternativeGroupId)return;
+ if(key==='jobs'&&first.status!==second.status)return;
+ change(()=>{link(p,key,[first.id,second.id]);picker=null;});
+ document.getElementById('variant-'+first.id)?.closest('.item').querySelector('.link-state button').focus({preventScroll:true});
+}
+function variantPicker(p,key,entries,source,number,trigger){
+ const job=key==='jobs',noun=job?'Job':'Address';
+ const panel=el('div',undefined,{className:'link-picker'});
+ panel.setAttribute('role','group');panel.setAttribute('aria-label',`Link ${noun} ${number} with another entry`);
+ panel.id='picker-'+source.id;
+ const close=()=>{
+  picker=null;render();
+  document.getElementById(trigger.id)?.focus({preventScroll:true});
+ };
+ for(const [index,group] of entries.entries()){
+  const candidate=group[0];
+  if(candidate===source)continue;
+  const name=noun+' '+(index+1);
+  const match=button('',()=>linkEntries(p,key,source,candidate));match.className='match';
+  const caption=el('span',undefined,{className:'match-heading'});
+  caption.append(el('strong',name));
+  const row=job?el('div',undefined,{className:'job-match'}):match;
+  if(job){
+   caption.append(jobStatus(p,candidate,index+1));
+   match.disabled=source.status!==candidate.status;
+   if(match.disabled)caption.append(el('span','Job statuses differ',{className:'mismatch'}));
+  }
+  row.append(caption);
+  const descriptions=group.map(r=>(job?[r.company,r.title]:[r.street,r.city,r.region,r.postal,r.country,r.label]).filter(Boolean).join(' · '));
+  for(const text of descriptions)match.append(el('span',text));
+  if(job){
+   match.setAttribute('aria-label',['Link with '+name,...descriptions.filter(Boolean)].join(' · '));
+   row.append(match);
+  }
+  panel.append(row);
+ }
+ panel.append(button('Cancel',close));
+ panel.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();close();}};
+ return panel;
+}
+function pairPrompt(p,key,first,second,numbers){
+ const job=key==='jobs',noun=job?'Job':'Address',title=job?'Same job?':'Same address?';
+ const hint=el('div',undefined,{className:'same-job'});hint.setAttribute('role','group');hint.setAttribute('aria-label',title);
+ const yes=button('Yes, link versions',()=>linkEntries(p,key,first,second));
+ yes.disabled=job&&first.status!==second.status;
+ hint.append(el('strong',title),el('span',`${noun} ${numbers[0]} and ${noun} ${numbers[1]}`,{className:'ref'}),yes,
+  button('Keep separate',()=>change(()=>separatePair(p,key,[first,second]))));
+ if(yes.disabled){
+  const warning=el('div',undefined,{className:'status-conflict'});warning.setAttribute('role','alert');
+  const titleCase=value=>value[0].toUpperCase()+value.slice(1);
+  warning.append(el('strong','Job statuses differ'),el('p',`Job ${numbers[0]} is ${titleCase(first.status)}. Job ${numbers[1]} is ${titleCase(second.status)}. Set matching statuses to link these jobs, or keep them separate.`));
+  hint.append(warning);
+ }
+ return hint;
+}
+function variantSection(p,key){
+ const job=key==='jobs',noun=job?'Job':'Address';
+ const container=section(p,key,job?'Jobs':'Addresses');container.classList.add('framed');
+ const entries=groups(p[key]);
+ if(picker?.person===p.id&&picker.key===key&&(entries.length<2||!entries.some(([row])=>row.id===picker.id)))picker=null;
+ const pair=suggestedPair(p,key);
+ const indices=pair?.map(row=>entries.findIndex(group=>group[0]===row)).sort((a,b)=>a-b);
+ for(const [index,group] of entries.entries()){
+  const [source]=group,linked=group.length>1,isPrimary=job&&index===0;
+  const item=el('div',undefined,{className:linked?'item linked':'item'});
+  if(linked)item.dataset.languageGroup=source.alternativeGroupId;
+  const heading=el('div',undefined,{className:'item-heading'+(isPrimary?' primary-job-heading':'')});
+  const details=isPrimary?el('div',undefined,{className:'job-heading-details'}):heading;
+  details.append(el('strong',noun+' '+(index+1)));
+  if(job)details.append(jobStatus(p,source));
+  if(isPrimary)heading.append(details,el('strong','Primary',{className:'primary-job-label'}));
+  const controls=el('div',undefined,{className:'link-controls'});
+  const open=picker?.person===p.id&&picker.key===key&&picker.id===source.id;
+  let trigger;
+  if(entries.length>1){
+   trigger=button('Link with…',()=>{
+    picker=open?null:{person:p.id,key,id:source.id};
+    render();
+    if(open)document.getElementById(trigger.id)?.focus({preventScroll:true});
+    else document.getElementById('picker-'+source.id)?.querySelector('button:enabled')?.focus({preventScroll:true});
+   });
+   trigger.id='link-'+source.id;
+   trigger.dataset.linkWith='';
+   trigger.setAttribute('aria-expanded',String(open));
+   if(open)trigger.setAttribute('aria-controls','picker-'+source.id);
+   controls.append(trigger);
+  }
+  if(linked){
+   const relationship=el('span',group.length+' linked versions',{className:'link-state'});
+   relationship.append(button('Unlink',()=>change(()=>{
+    for(const [i,row] of group.entries())for(const other of group.slice(i+1))separatePair(p,key,[row,other]);
+    unlink(p,key,source.id);
+   })));
+   controls.append(relationship);
+  }
+  if(controls.childElementCount)heading.append(controls);
+  item.append(heading);
+  if(open&&trigger)item.append(variantPicker(p,key,entries,source,index+1,trigger));
+  for(const [versionIndex,row] of group.entries()){
+   const version=el('div',undefined,{id:'variant-'+row.id,className:'version row-'+key});
+   if(linked)version.append(el('div','Printed version '+(versionIndex+1),{className:'version-heading'}));
+   const fields=el('div',undefined,{className:'printed-fields'});
+   rowFields(fields,p,key,row,{printed:true});
+   const actions=el('div',undefined,{className:'version-actions'});
+   actions.append(button('Remove',()=>change(()=>removeRow(p,key,row))));
+   if(job&&row!==p.jobs[0])actions.append(button('Make primary',()=>change(()=>{
+    if(open)picker=null;
+    primary(p,row.id);
+   })));
+   version.append(fields,actions);
+   renderProposals(version,p,key,{row});
+   item.append(version);
+  }
+  container.append(item);
+  if(indices?.[1]===index)container.append(pairPrompt(p,key,entries[indices[0]][0],source,indices.map(i=>i+1)));
+ }
+ renderProposals(container,p,key);
+ return container;
+}
+function renderEditor(){
+ const pane=$('#editor'),p=current();pane.replaceChildren();
+ if(!p)return;
+ if(picker?.person!==p.id)picker=null;
+ const heading=el('div',undefined,{className:'editor-heading'});
+ heading.append(el('h2','Contact review'),reviewActions(p));pane.append(heading);
+ field(pane,'Main name (printed names, separated by spaces)',displayName(p),v=>{
+  manualChange(p,'display');p.display=v;contentChange(p);
+ },{key:'display'});
+ for(const view of [...keys.filter(k=>k!=='socials'),'linkedin','whatsapp','socials']){
+  if(['jobs','addresses'].includes(view)){pane.append(variantSection(p,view));continue;}
+  const service=['linkedin','whatsapp'].includes(view)?view:null,key=service?'socials':view;
+  const label=service==='linkedin'?'LinkedIn':service==='whatsapp'?'WhatsApp':fieldNames[key];
+  const container=section(p,key,label??key[0].toUpperCase()+key.slice(1),label??key,service?{label:service}:{});
+  if(key==='wechats')container.append(el('p','WeChat IDs are preserved in Monica Notes on import.',{className:'hint'}));
+  for(const record of p[key]){
+   if(key==='socials'&&view!==socialView(record))continue;
+   const row=el('div',undefined,{className:'row row-'+key});
+   if(key==='names')row.append(el('small',record.origin==='generated'?'Generated simplified · editable':'Printed / manually entered'));
+   if(service==='whatsapp'){
+    const label=el('label','Number source'),select=el('select');
+    select.append(el('option','Independent number',{value:''}));
+    for(const phone of p.phones)select.append(el('option',phone.label+' '+phone.value,{value:phone.id}));
+    select.value=record.phoneId??'';
+    select.onchange=()=>change(()=>{manualChange(p,key,record);associate(p,record.id,select.value);});
+    label.append(select);row.append(label);
+   }
+   rowFields(row,p,key,record,{service});
+   const actions=el('div',undefined,{className:'row-actions'});
+   actions.append(button('Remove',()=>change(()=>removeRow(p,key,record))));
+   row.append(actions);container.append(row);
+   renderProposals(container,p,key,{row:record,view});
+  }
+  renderProposals(container,p,key,{view});
+  pane.append(container);
+ }
+ pane.append(button('Add simplified variants',()=>change(()=>{p.suppressed=[];addSimplified(p,convert);contentChange(p);})));
+ field(pane,'Additional nicknames (comma separated)',p.nicknames,v=>{p.nicknames=v;contentChange(p);},{key:'nicknames'});
+ field(pane,'Notes',p.notes,v=>{editNotes(p,v);contentChange(p);},{type:'textarea',key:'notes'});
+ renderProposals(pane,p,'notes');
+ pane.append(el('h3','First met'));
+ const firstMet=el('div',undefined,{className:'first-met-fields'});
+ for(const key of ['date','occasion','location','notes'])field(firstMet,key,p.firstMet[key],v=>{
+  p.firstMet[key]=v;contentChange(p);
+ },{key:'firstMet',column:key,type:key==='date'?'date':key==='notes'?'textarea':'text'});
+ pane.append(firstMet,reviewActions(p));
 }
 $('#files').onchange=async e=>{const cards=[];for(const file of e.target.files){if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>12*1024*1024){status('Use JPEG, PNG or WebP, up to 12 MB per card.');continue;}const id=crypto.randomUUID();assets.set(id,{file,url:URL.createObjectURL(file),name:file.name,rotation:0});cards.push(id);}if(cards.length)change(s=>{for(const id of cards){const p=person(id);s.push(p);selection.add(p.id);active=p.id;}});e.target.value='';};
 $('#all').onclick=()=>{for(const p of h.state)selection.add(p.id);render();};$('#none').onclick=()=>{selection.clear();render();};
@@ -99,8 +351,55 @@ $('#batchForm').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target);c
 async function imageData(asset){if(!asset.rotation)return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(asset.file);});const img=await createImageBitmap(asset.file),canvas=document.createElement('canvas');const swap=asset.rotation%180!==0;canvas.width=swap?img.height:img.width;canvas.height=swap?img.width:img.height;const ctx=canvas.getContext('2d');ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(asset.rotation*Math.PI/180);ctx.drawImage(img,-img.width/2,-img.height/2);img.close();return canvas.toDataURL('image/jpeg',.95);}
 $('#retry').onclick=()=>{retryOnly=true;$('#extract').click();};
 $('#cancel').onclick=()=>{cancelled=true;controller?.abort();status('Cancelling extraction…');};
-$('#extract').onclick=async()=>{if(!selected().length)return status('Select people to extract.');busy=true;cancelled=false;render();const queue=selected().flatMap(p=>p.cards.map(card=>({id:p.id,card}))).filter(t=>!retryOnly||outcomes.get(t.card)==='failed');retryOnly=false;let failed=0,done=0;for(const task of queue){if(cancelled)break;const p=h.state.find(p=>p.id===task.id);if(!p?.cards.includes(task.card))continue;const rev=p.revision;status(`Extracting ${done+failed+1} of ${queue.length}…`);controller=new AbortController();try{const image=await imageData(assets.get(task.card));if(cancelled)break;const response=await fetch('/extract',{method:'POST',headers:{'Content-Type':'application/json','X-Session-Token':session.token},body:JSON.stringify({image}),signal:controller.signal});const result=await response.json();if(!response.ok)throw Error(result.error||'Extraction failed.');if(cancelled)break;const now=h.state.find(p=>p.id===task.id);if(!now?.cards.includes(task.card))continue;change(()=>{if(now.revision===rev&&keys.every(k=>!now[k].length)&&!now.notes&&!now.display&&now.revision===0){applyExtraction(now,task.card,result,convert);if(result.warnings.length)now.suggestions.push({card:task.card,data:{...Object.fromEntries(keys.map(k=>[k,[]])),notes:'',warnings:result.warnings}});}else now.suggestions.push({card:task.card,data:result});});outcomes.set(task.card,'done');failures.delete(task.card);done++;}catch(e){if(cancelled)break;outcomes.set(task.card,'failed');failures.set(task.card,e.message);failed++;status(e.message);} }busy=false;controller=null;render();status(`${cancelled?'Stopped. ':''}${done} completed; ${failed} failed. Select failed drafts to retry.`);};
-function exportPeople(){if(busy)throw Error('Wait for extraction to finish, or cancel it before exporting.');const ps=selected();if(!ps.length)throw Error('No people selected. Tick their checkboxes in the list, or choose Select all reviewed people.');const pending=ps.filter(p=>!p.reviewed||p.suggestions.length);if(pending.length)throw Error(`${pending.length} of ${ps.length} selected people still need review. Resolve extraction suggestions, then tick Reviewed against source cards at the top or bottom of each contact form, or use Mark selected reviewed.`);return ps;}
+$('#extract').onclick=async()=>{
+ if(!selected().length)return status('Select people to extract.');
+ if(busy)return;
+ busy=true;cancelled=false;render();
+ const queue=selected().flatMap(p=>p.cards.map(card=>({owner:p.id,card})))
+  .filter(task=>!retryOnly||outcomes.get(task.card)==='failed');
+ retryOnly=false;
+ let failed=0,done=0;
+ for(const {owner,card} of queue){
+  if(cancelled)break;
+  const p=h.state.find(person=>person.id===owner);
+  if(!p?.cards.includes(card))continue;
+  const activeEdit=()=>{
+   if(pendingEdit?.owner!==owner)return;
+   const {key,rowId,identity}=pendingEdit;
+   return {key,rowId,identity};
+  };
+  const atDispatch=activeEdit();
+  status(`Extracting ${done+failed+1} of ${queue.length}…`);
+  const request=new AbortController();
+  controller=request;
+  try{
+   const image=await imageData(assets.get(card));
+   if(request.signal.aborted)break;
+   const response=await fetch('/extract',{
+    method:'POST',headers:{'Content-Type':'application/json','X-Session-Token':session.token},
+    body:JSON.stringify({image}),signal:request.signal
+   });
+   const result=await response.json();
+   if(request.signal.aborted||controller!==request)break;
+   if(!response.ok)throw Error(result.error||'Extraction failed.');
+   const now=h.state.find(person=>person.id===owner);
+   if(!now?.cards.includes(card))continue;
+   const updated=structuredClone(now);
+   if(reconcileRead(updated,card,result,convert,{draft:activeEdit(),atDispatch})){
+    h.change(state=>{state[state.indexOf(now)]=updated;});
+   }
+   outcomes.set(card,'done');failures.delete(card);done++;
+   render();
+  }catch(e){
+   if(request.signal.aborted||controller!==request)break;
+   outcomes.set(card,'failed');failures.set(card,e.message);failed++;
+   render();
+  }
+ }
+ busy=false;controller=null;render();
+ status(`${cancelled?'Stopped. ':''}${done} completed; ${failed} failed. Select failed drafts to retry.`);
+};
+function exportPeople(){if(busy)throw Error('Wait for extraction to finish, or cancel it before exporting.');const ps=selected();if(!ps.length)throw Error('No people selected. Tick their checkboxes in the list, or choose Select all reviewed people.');const pending=ps.filter(p=>!p.reviewed||p.suggestions.length);if(pending.length)throw Error(`${pending.length} of ${ps.length} selected people still need review. Resolve extraction suggestions, then tick Reviewed against source cards at the top or bottom of each contact form, or use Mark reviewed in the sidebar.`);return ps;}
 function exportFeedback(message){$('#exportError').textContent=message;$('#exportError').hidden=!message;$('#combined').disabled=exporting||!!message;$('#individual').disabled=exporting||!!message;}
 function downloadFilename(extension){
  const name=$('#exportFilename').value.trim().replace(/\.(vcf|zip)$/i,'').trim();
@@ -118,7 +417,7 @@ function preview(){
 $('#export').onclick=()=>{$('#exportDialog').showModal();preview();};$('#mode').onchange=preview;
 $('#exportFilename').oninput=preview;
 $('#selectReviewed').onclick=()=>{selection.clear();for(const p of h.state)if(p.reviewed&&!p.suggestions.length)selection.add(p.id);render();preview();};
-$('#goReview').onclick=()=>{const p=selected().find(p=>!p.reviewed||p.suggestions.length);if(!p)return;$('#exportDialog').close();active=p.id;render();const target=p.suggestions.length?$('#editor .suggestion'):$('#editor .review');target?.scrollIntoView({block:'center',behavior:'smooth'});if(!p.suggestions.length)target?.querySelector('input')?.focus({preventScroll:true});};
+$('#goReview').onclick=()=>{const p=selected().find(p=>!p.reviewed||p.suggestions.length);if(!p)return;$('#exportDialog').close();active=p.id;render();const target=p.suggestions.length?$('#editor .suggestion, #images .suggestion'):$('#editor .review');target?.scrollIntoView({block:'center',behavior:'smooth'});if(!p.suggestions.length)target?.querySelector('input')?.focus({preventScroll:true});};
 function download(bytes,name,type){const url=URL.createObjectURL(new Blob([bytes],{type}));const a=el('a',undefined,{href:url,download:name});document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function exported(ps){for(const p of ps)exports.set(p.uid,signature(p));updateWarning();status('Download requested. Check that your browser saved the file before closing.');$('#exportNotice').textContent='Download requested. Check your browser Downloads (Ctrl+J); keep this session open until the file is saved.';}
 async function exportDownload(individual){
@@ -141,7 +440,7 @@ $('#combined').onclick=()=>exportDownload(false);
 $('#individual').onclick=()=>exportDownload(true);
 for(const b of document.querySelectorAll('[data-close]'))b.onclick=()=>b.closest('dialog').close();
 const leave=e=>{e.preventDefault();e.returnValue='';};let warned=false;
-function updateWarning(){const dirty=pendingEdits||busy||exporting||h.state.some(p=>p.suggestions.length>0||exports.get(p.uid)!==signature(p));if(dirty&&!warned){window.addEventListener('beforeunload',leave);warned=true;}if(!dirty&&warned){window.removeEventListener('beforeunload',leave);warned=false;}}
+function updateWarning(){const dirty=pendingEdit||busy||exporting||h.state.some(p=>p.suggestions.length>0||exports.get(p.uid)!==signature(p));if(dirty&&!warned){window.addEventListener('beforeunload',leave);warned=true;}if(!dirty&&warned){window.removeEventListener('beforeunload',leave);warned=false;}}
 render();status(`Ready · model ${session.model}. Add card images to begin.`);
 
 $('#checkModel').onclick=async()=>{

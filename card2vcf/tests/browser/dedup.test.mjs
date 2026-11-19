@@ -43,8 +43,8 @@ test('invert selection, combined bilingual fields, WeChat editing, downloads and
    for(const prop of ['email','tel','adr','org','x-wechat'])assert.equal(parsed.getAllProperties(prop).length,1,prop);assert.equal(parsed.getFirstPropertyValue('x-wechat'),'fictional_edited');assert.match(parsed.getFirstPropertyValue('note'),/WeChat: fictional_edited/);assert.equal(parsed.getAllProperties('photo').length,2);
   }
   await page.locator('#exportDialog [data-close]').click();
-  await page.locator('#extract').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('2 completed'));assert.equal(await page.locator('.suggestion').count(),2);assert.equal(await values.first().inputValue(),'fictional_edited');
-  for(let i=0;i<2;i++)await page.getByRole('button',{name:'Accept additional values',exact:true}).first().click();assert.equal(await rows.count(),2);assert.equal(await page.locator('.row-emails').count(),1);assert.equal(await page.locator('.row-jobs').count(),1);
+  await page.locator('#extract').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('2 completed'));assert.equal(await page.locator('.suggestion').count(),0);assert.equal(await values.first().inputValue(),'fictional_edited');
+  assert.equal(await rows.count(),1);assert.equal(await page.locator('.row-emails').count(),1);assert.equal(await page.locator('.row-jobs').count(),1);
   await page.locator('#images input[type=checkbox]').first().check();await page.locator('#detach').click();assert.equal(await page.locator('#people .person').count(),2);
   for(let i=0;i<2;i++){await page.locator('#people .person button').nth(i).click();for(const key of ['names','emails','jobs','addresses'])assert.equal(await page.locator('.row-'+key).count(),1,key);assert.equal(await page.locator('#images .card').count(),1);}
   await page.locator('#undo').click();assert.equal(await page.locator('#people .person').count(),1);await page.locator('#redo').click();assert.equal(await page.locator('#people .person').count(),2);assert.deepEqual(errors,[]);

@@ -3,6 +3,7 @@
 - Install, start, stop and restart: [Windows quickstart](QUICKSTART.md).
 - Feature requirements and workflow: [specification](SPEC.md).
 - Converter integration delivery and importer handoff: [integration plan](INTEGRATION-PLAN.md).
+- Combined-card extraction and variant review: [implementation plan](COMBINED-CARD-REVIEW-PLAN.md).
 - Implemented behavior and direct changes beyond the spec: [implementation record](../docs/IMPLEMENTATION.md).
 - App configuration: [configuration names](../docs/IMPLEMENTATION.md#configuration).
 - Export/import integration requirements: [shared Monica specification](../docs/MONICA-SPEC.md#shared-card2vcf-to-monica-vcf-requirements).

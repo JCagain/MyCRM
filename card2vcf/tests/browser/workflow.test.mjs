@@ -24,7 +24,10 @@ test('compact review, selected batch actions, detach and personalized downloads'
   assert.equal(await page.locator('header #batch').count(),0);
   assert.equal(await page.locator('aside #batch').count(),1);
   assert.equal(await page.locator('#export').textContent(),'Export');
-  assert.equal(await page.locator('#combine + #detach').count(),1);
+  assert.deepEqual(await page.locator('aside > .actions, aside > .selection-count').allTextContents(),[
+   'Select allClearInvert selection','0 people selected','LinkDetach','Mark reviewedDelete','Set first met'
+  ]);
+  assert.equal(await page.locator('#selectionCount').evaluate(count=>getComputedStyle(count).fontSize),'16px');
   assert.equal(await page.locator('#files').isVisible(),false,'Add cards hides the native file input');
   await page.locator('#files').setInputFiles(['one','two','three'].map(name=>({name:name+'.png',mimeType:'image/png',buffer:png})));
   await page.locator('#reviewSelected').click();assert.match(await page.locator('#status').textContent(),/Nothing was marked reviewed/);
@@ -36,7 +39,9 @@ test('compact review, selected batch actions, detach and personalized downloads'
   for(const width of [1440,1100,800,390]){
    await page.setViewportSize({width,height:1000});
    const combineBox=await page.locator('#combine').boundingBox(),detachBox=await page.locator('#detach').boundingBox();
-   assert.equal(combineBox.y,detachBox.y,`Combine and Detach share a row at ${width}px`);
+   assert.equal(combineBox.y,detachBox.y,`Link and Detach share a row at ${width}px`);
+   const reviewBox=await page.locator('#reviewSelected').boundingBox(),deleteBox=await page.locator('#deleteSelected').boundingBox();
+   assert.equal(reviewBox.y,deleteBox.y,`Mark reviewed and Delete share a row at ${width}px`);
    const boxes=await Promise.all([phone.locator('.field-label input').boundingBox(),phone.locator('.field-value input').boundingBox(),phone.getByRole('button',{name:'Remove',exact:true}).boundingBox()]);
    assert.ok(Math.abs(boxes[0].y-boxes[1].y)<2,`phone fields share a row at ${width}px`);
    assert.ok(Math.abs(boxes[0].y+boxes[0].height-boxes[2].y-boxes[2].height)<2,`Remove shares the row at ${width}px`);
@@ -89,7 +94,7 @@ test('fictional browser workflow: extract, combine, undo, edit, export, warning 
  await page.locator('#export').click();assert.equal(await page.locator('#exportDialog').isVisible(),true);assert.match(await page.locator('#exportError').textContent(),/still need review/);assert.equal(await page.locator('#combined').isDisabled(),true);await page.locator('#goReview').click();assert.equal(await page.locator('#exportDialog').isVisible(),false);
  const main=page.getByLabel('Main name (printed names, separated by spaces)');assert.equal(await main.inputValue(),'陳大文 David Chan');assert.ok(await page.getByText('Generated simplified · editable').count());await main.fill('陳大文 David Chan Edited');await main.press('Tab');await page.getByLabel('Reviewed against source cards').first().check();
  await page.locator('#extract').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('2 completed'));assert.equal(await main.inputValue(),'陳大文 David Chan Edited');
- for(let i=0;i<2;i++)await page.getByRole('button',{name:'Accept additional values',exact:true}).first().click();assert.equal(await page.getByLabel('Reviewed against source cards').first().isChecked(),false);assert.equal(await main.inputValue(),'陳大文 David Chan Edited');await page.getByLabel('Reviewed against source cards').first().check();
+ assert.equal(await page.locator('.suggestion').count(),0);assert.equal(await page.getByLabel('Reviewed against source cards').first().isChecked(),true);
  await page.locator('#batch').click();await page.locator('#batchForm input[name=occasion]').fill('Fictional conference');await page.locator('#batchForm button[type=submit], #batchForm button:not([type])').click();assert.equal(await page.getByLabel('Reviewed against source cards').first().isChecked(),true);
  await page.getByRole('button',{name:'Rotate',exact:true}).first().click();await page.locator('#export').click();assert.ok((await page.locator('#preview').textContent()).includes('NICKNAME:陈大文'));assert.equal((await page.locator('#preview').textContent()).includes('base64'),false);const downloadEvent=page.waitForEvent('download');await page.locator('#individual').click();const download=await downloadEvent;assert.equal(download.suggestedFilename(),'contacts.zip');await assertDownloadPhotos(download,true,[2]);await page.locator('#exportDialog [data-close]').click();
  await main.fill('陳大文 David Chan Changed');await main.press('Tab');const dialogEvent=page.waitForEvent('dialog');const reloading=page.reload({timeout:2000}).catch(()=>{});const dialog=await dialogEvent;assert.equal(dialog.type(),'beforeunload');await dialog.dismiss();await reloading;assert.equal(await page.locator('#people .person').count(),1);
