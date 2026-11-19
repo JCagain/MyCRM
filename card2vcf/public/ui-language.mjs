@@ -1,6 +1,5 @@
 const simplified = {
  'Language':'界面语言',
- 'Local · session only':'本地运行 · 仅限当前会话',
  'Add cards':'添加名片',
  'Extract selected':'提取所选',
  'Retry failed':'重试失败项',
@@ -143,8 +142,7 @@ const simplified = {
  'websites':'网站',
  'socials':'社交账号',
  'WeChat IDs are preserved in Monica Notes on import.':'导入 Monica 时，微信号将保存在备注中。',
- 'Generated simplified · editable':'生成的简体姓名 · 可编辑',
- 'Printed / manually entered':'名片原文 / 手动输入',
+ 'Generated simplified':'生成的简体姓名',
  'Number source':'号码来源',
  'Independent number':'独立号码',
  'Add simplified variants':'添加简体姓名',

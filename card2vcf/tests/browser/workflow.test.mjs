@@ -13,7 +13,7 @@ test('compact review, selected batch actions, detach and personalized downloads'
  const fake=http.createServer(async(req,res)=>{
   for await(const c of req){}calls++;
   res.setHeader('Content-Type','application/json');
-  res.end(JSON.stringify({choices:[{message:{content:JSON.stringify({names:['Fictional Person '+calls],phones:[{label:'work',value:'555-010'+calls}],jobs:[{company:'Example',title:'Tester'}]})}}]}));
+  res.end(JSON.stringify({choices:[{message:{content:JSON.stringify({names:['Fictional Person '+calls],phones:[{label:'work',value:'555-010'+calls}],jobs:[{company:'Example',title:'Tester'}],socials:[{label:'WhatsApp',value:'555-010'+calls}]})}}]}));
  });
  const endpoint=await listen(fake),app=createApp({endpoint:endpoint+'/v1',model:'fictional',key:''}),url=await listen(app);let browser;
  try{
@@ -36,6 +36,17 @@ test('compact review, selected batch actions, detach and personalized downloads'
   const reviews=page.getByLabel('Reviewed against source cards');assert.equal(await reviews.count(),2);
   assert.equal(await page.locator('.editor-heading').getByRole('button',{name:'Delete person',exact:true}).count(),1);
   const phone=page.locator('.row-phones').first();
+  const job=page.locator('#editor .framed .item').first();
+  const contactGroups=page.locator('#editor .contact-fields');
+  assert.deepEqual(await contactGroups.locator('h3').allTextContents(),['Names','Phones','Emails','WeChat','Websites','LinkedIn','WhatsApp','Socials']);
+  const frameStyle=element=>{const style=getComputedStyle(element);return [style.borderColor,style.borderRadius];};
+  const background=element=>getComputedStyle(element).backgroundColor;
+  assert.deepEqual(await contactGroups.first().evaluate(frameStyle),await job.evaluate(frameStyle));
+  const jobHeaderColor=await job.locator('.item-heading').evaluate(background);
+  const otherHeaders=page.locator('#editor .contact-fields>.item-heading, #editor .first-met>.item-heading');
+  assert.deepEqual(await otherHeaders.evaluateAll(elements=>elements.map(element=>getComputedStyle(element).backgroundColor)),Array(9).fill(jobHeaderColor));
+  const firstMet=page.locator('.first-met-fields');
+  const whatsapp=page.locator('.row-whatsapp').first();
   for(const width of [1440,1100,800,390]){
    await page.setViewportSize({width,height:1000});
    const combineBox=await page.locator('#combine').boundingBox(),detachBox=await page.locator('#detach').boundingBox();
@@ -45,6 +56,12 @@ test('compact review, selected batch actions, detach and personalized downloads'
    const boxes=await Promise.all([phone.locator('.field-label input').boundingBox(),phone.locator('.field-value input').boundingBox(),phone.getByRole('button',{name:'Remove',exact:true}).boundingBox()]);
    assert.ok(Math.abs(boxes[0].y-boxes[1].y)<2,`phone fields share a row at ${width}px`);
    assert.ok(Math.abs(boxes[0].y+boxes[0].height-boxes[2].y-boxes[2].height)<2,`Remove shares the row at ${width}px`);
+   const firstMetColumns=await firstMet.evaluate(element=>getComputedStyle(element).gridTemplateColumns.split(' ').length);
+   if(width===1440||width===390)assert.equal(firstMetColumns,width===1440?3:2);
+   if(width===390){
+    const source=await whatsapp.getByLabel('Number source').boundingBox(),number=await whatsapp.getByLabel('value',{exact:true}).boundingBox();
+    assert.ok(source.y<number.y&&source.width>number.width,'WhatsApp source gets its own full-width row on mobile');
+   }
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,`no page overflow at ${width}px`);
   }
   await page.setViewportSize({width:1440,height:1000});
@@ -92,7 +109,15 @@ test('fictional browser workflow: extract, combine, undo, edit, export, warning 
  await page.locator('#checkModel').click();await page.waitForFunction(()=>document.querySelector('#modelStatus').dataset.state==='connected');await page.locator('#files').setInputFiles([{name:'fictional-a.png',mimeType:'image/png',buffer:png},{name:'fictional-b.png',mimeType:'image/png',buffer:png}]);await page.locator('#extract').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('2 completed'));
  assert.equal(await page.locator('#people .person').count(),2);await page.locator('#combine').click();assert.equal(await page.locator('#people .person').count(),1);await page.locator('#undo').click();assert.equal(await page.locator('#people .person').count(),2);await page.locator('#redo').click();assert.equal(await page.locator('#people .person').count(),1);
  await page.locator('#export').click();assert.equal(await page.locator('#exportDialog').isVisible(),true);assert.match(await page.locator('#exportError').textContent(),/still need review/);assert.equal(await page.locator('#combined').isDisabled(),true);await page.locator('#goReview').click();assert.equal(await page.locator('#exportDialog').isVisible(),false);
- const main=page.getByLabel('Main name (printed names, separated by spaces)');assert.equal(await main.inputValue(),'陳大文 David Chan');assert.ok(await page.getByText('Generated simplified · editable').count());await main.fill('陳大文 David Chan Edited');await main.press('Tab');await page.getByLabel('Reviewed against source cards').first().check();
+ const names=page.locator('.row-names');
+ assert.deepEqual(await names.locator('small').allTextContents(),['Generated simplified']);
+ const generated=names.filter({hasText:'Generated simplified'});
+ assert.equal(await generated.getByRole('textbox',{name:'value',exact:true}).inputValue(),'陈大文');
+ assert.equal(await generated.locator('.field-value small').count(),1);
+ await page.locator('#uiLanguage').selectOption('zh-CN');
+ assert.deepEqual(await names.locator('small').allTextContents(),['生成的简体姓名']);
+ await page.locator('#uiLanguage').selectOption('en');
+ const main=page.getByLabel('Main name (printed names, separated by spaces)');assert.equal(await main.inputValue(),'陳大文 David Chan');await main.fill('陳大文 David Chan Edited');await main.press('Tab');await page.getByLabel('Reviewed against source cards').first().check();
  await page.locator('#extract').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('2 completed'));assert.equal(await main.inputValue(),'陳大文 David Chan Edited');
  assert.equal(await page.locator('.suggestion').count(),0);assert.equal(await page.getByLabel('Reviewed against source cards').first().isChecked(),true);
  await page.locator('#batch').click();await page.locator('#batchForm input[name=occasion]').fill('Fictional conference');await page.locator('#batchForm button[type=submit], #batchForm button:not([type])').click();assert.equal(await page.getByLabel('Reviewed against source cards').first().isChecked(),true);

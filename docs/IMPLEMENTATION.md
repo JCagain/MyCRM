@@ -21,6 +21,20 @@ The header's **Language** control switches the interface between English and Sim
 
 Verified on 2026-11-19 with 32 unit tests and 8 Edge browser tests. The [language switch test](../card2vcf/tests/browser/ui-language.test.mjs) covers both directions, model status and extraction errors, the batch and export dialogs, and preservation of the export preview at 390 px.
 
+## card2vcf contact editor layout
+
+The right panel uses the Jobs section’s borders, tinted headers, and field spacing for the other contact groups. Repeated entries have dividers, and their Add and Remove controls stay beside the fields they affect. First met uses three columns when space allows and moves Location onto its own row in narrower panels. WhatsApp moves its number-source selector above the value on narrow screens.
+
+Generated names show a small green **Generated simplified** label beside **value**. Printed and manually entered names have no source label. Remove buttons share the Delete text color, and the Remove button is the last action on every job version. The [workflow](../card2vcf/tests/browser/workflow.test.mjs) and [integration](../card2vcf/tests/browser/integration.test.mjs) tests cover these details.
+
+The [Edge workflow test](../card2vcf/tests/browser/workflow.test.mjs) checks the shared framing and control placement at 1440, 1100, 800, and 390 px. The populated editor was also visually reviewed at 1440 and 390 px using fictional data.
+
+## card2vcf toolbar and sidebar layout
+
+The header places Check model and a **?** help button beside the app name. It also displays the model reachability status and language control. The help button opens the PowerShell setup instructions in a dialog. The card toolbar sits below the header. The left-panel action rows and selection count are centered. Select all, Clear, and Invert selection share a light blue background.
+
+The [Edge language test](../card2vcf/tests/browser/ui-language.test.mjs) verifies the layout in English and Simplified Chinese at 1440 and 390 px.
+
 ## Local demo changes
 
 - On 2026-11-19, the local `stacked-same-job-demo.html` moved the selection count directly below the selection controls and placed **Mark reviewed** and **Delete** on one row above **Set first met**. The contact review checkboxes read **Reviewed**, and the job dropdowns read **Status**. Verified in Edge at 1440 px and 390 px viewport widths.

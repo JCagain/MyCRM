@@ -1,10 +1,19 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>card2vcf</title><link rel="stylesheet" href="/styles.css"><script src="/opencc.js" defer></script><script type="module" src="/app.mjs"></script></head><body>
-<header><strong>card2vcf</strong><span>Local · session only</span><label class="button">Add cards<input id="files" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden></label><button id="extract">Extract selected</button><button id="retry">Retry failed</button><button id="cancel" disabled>Cancel</button><button id="undo">Undo</button><button id="redo">Redo</button><button id="export">Export</button><label class="ui-language">Language<select id="uiLanguage"><option value="en" lang="en">English</option><option value="zh-CN" lang="zh-CN">简体中文</option></select></label></header>
-<div class="model-connection"><button id="checkModel">Check model</button><span id="modelStatus" role="status" aria-live="polite">Model connection not checked.</span></div>
-<p class="notice">Closing or refreshing this tab discards your session. Export before leaving. Images and contacts stay local. Add a card (one or both sides) or a self-introduction screenshot about one person. No mode switch needed.</p><p id="status" role="status" aria-live="polite">Add card images or self-introduction screenshots to begin.</p>
+<header>
+  <div class="model-connection">
+    <strong>card2vcf</strong>
+    <button id="checkModel" type="button">Check model</button>
+    <button id="showSetup" type="button" aria-labelledby="setupTitle" aria-controls="setupDialog" aria-haspopup="dialog">?</button>
+  </div>
+  <span id="modelStatus" role="status" aria-live="polite">Model connection not checked.</span>
+  <label class="ui-language">Language<select id="uiLanguage"><option value="en" lang="en">English</option><option value="zh-CN" lang="zh-CN">简体中文</option></select></label>
+</header>
 
-<details class="setup">
-<summary>Start the local model server (PowerShell)</summary>
+<dialog id="setupDialog" class="setup" aria-labelledby="setupTitle">
+<div class="setup-heading">
+  <h2 id="setupTitle">Start the local model server (PowerShell)</h2>
+  <button type="button" data-close>Close</button>
+</div>
 <p>No API key is required. Open two PowerShell windows. In the first, run the model command below and wait until the server is ready. Keep both windows open while using the app.</p>
 <pre><code>llama serve `
   -m "D:\AI\models\Qwen3.8-27B-UD-Q4_K_M.gguf" `
@@ -29,10 +38,20 @@ npm.cmd start</code></pre>
 <p><strong>Performance on this PC:</strong> the 27B model file is about 15.3 GiB, while Vulkan1 is an RTX 5060 Laptop GPU with about 8 GiB VRAM. Automatic offloading therefore leaves substantial CPU work. One server slot matches this app’s sequential queue; it does not eliminate the model’s memory bottleneck. For substantially faster batches, use a smaller generative vision model with its matching projector that fits GPU memory. The installed 2B embedding model is not a replacement for a chat/extraction model.</p>
 <p>Reasoning is already disabled by <code>--reasoning off</code>. The “preserving reasoning” message concerns chat history; changing that setting alone is not an established speed fix. Image token limits can reduce processing time but may lose tiny text, so they are not reduced by default.</p>
 <p>Optional: if you later enable <code>--api-key</code> on the model server, set the same value in <code>$env:CARD2VCF_API_KEY</code> before starting card2vcf. Otherwise leave both unset.</p>
-</details>
+</dialog>
+<div class="card-toolbar">
+  <label class="button">Add cards<input id="files" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden></label>
+  <button id="extract">Extract selected</button>
+  <button id="retry">Retry failed</button>
+  <button id="cancel" disabled>Cancel</button>
+  <button id="undo">Undo</button>
+  <button id="redo">Redo</button>
+  <button id="export">Export</button>
+</div>
+<p class="notice">Closing or refreshing this tab discards your session. Export before leaving. Images and contacts stay local. Add a card (one or both sides) or a self-introduction screenshot about one person. No mode switch needed.</p><p id="status" role="status" aria-live="polite">Add card images or self-introduction screenshots to begin.</p>
 <main>
   <aside>
-    <div class="actions"><button id="all">Select all</button><button id="none">Clear</button><button id="invert" title="Select unchecked people and clear checked people.">Invert selection</button></div>
+    <div class="actions selection-actions"><button id="all">Select all</button><button id="none">Clear</button><button id="invert" title="Select unchecked people and clear checked people.">Invert selection</button></div>
     <p id="selectionCount" class="selection-count" aria-live="polite">0 people selected</p>
     <div class="actions"><button id="combine">Link</button><button id="detach" title="Tick source cards on the open person, then detach them into a new person.">Detach</button></div>
     <div class="actions"><button id="reviewSelected">Mark reviewed</button><button id="deleteSelected" class="danger">Delete</button></div>

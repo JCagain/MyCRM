@@ -51,6 +51,11 @@ test('integration controls, metadata history, all downloads and fictional re-ext
   await picker.getByLabel('Status for Job 1').press('Escape');
   assert.equal(await picker.count(),0);
   assert.equal(await jobItems.nth(1).getByRole('button',{name:'Link with…'}).evaluate(node=>node===document.activeElement),true);
+  const trailingActions=await jobItems.locator('.version-actions').evaluateAll(rows=>rows.map(row=>row.lastElementChild.textContent));
+  assert.deepEqual(trailingActions,['Remove','Remove','Remove']);
+  const deleteColor=await page.locator('#deleteSelected').evaluate(button=>getComputedStyle(button).color);
+  const removeColors=await page.locator('#editor').getByRole('button',{name:'Remove',exact:true}).evaluateAll(buttons=>buttons.map(button=>getComputedStyle(button).color));
+  assert.deepEqual([...new Set(removeColors)],[deleteColor]);
   await jobItems.nth(1).getByLabel('Job status').selectOption('former');await jobs.nth(1).getByRole('button',{name:'Make primary'}).click();assert.equal(await jobs.first().getByLabel('Company',{exact:true}).inputValue(),'\u793a\u4f8b');
   assert.equal(await addresses.count(),2);
   await addressSection.getByRole('button',{name:'Link with…'}).first().click();

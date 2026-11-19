@@ -148,8 +148,9 @@ function renderImages(){
 }
 const fieldNames={wechats:'WeChat'};
 function section(p,key,title,addLabel=key,extra={}){
- const container=el('div',undefined,{className:'field-section'});
- const heading=el('div',undefined,{className:'field-heading'});
+ const variants=key==='jobs'||key==='addresses';
+ const container=el('div',undefined,{className:variants?'field-section framed':'field-section item contact-fields'});
+ const heading=el('div',undefined,{className:variants?'field-heading':'field-heading item-heading'});
  heading.append(el('h3',t(title)),button(t('Add {0}',t(addLabel)),()=>change(()=>{
   p[key].push({...Object.fromEntries(definitions[key].map(f=>[f,''])),id:crypto.randomUUID(),origin:'manual',edited:true,...extra});
   initialize(p);contentChange(p);
@@ -197,6 +198,12 @@ function rowFields(parent,p,key,row,{service,printed=false}={}){
    row[column]=value;row.edited=true;contentChange(p);
   },{key,row,column});
   input.parentElement.className='field-'+column;
+  if(key==='names'&&row.origin==='generated'){
+   const origin=el('small',t('Generated simplified'),{id:'name-origin-'+row.id});
+   origin.setAttribute('aria-hidden','true');
+   input.setAttribute('aria-describedby',origin.id);
+   input.before(origin);
+  }
   if(service==='whatsapp'&&row.phoneId&&column==='value')input.disabled=true;
  }
 }
@@ -206,6 +213,11 @@ function removeRow(p,key,row){
  if(['jobs','addresses','phones','socials'].includes(key))remove(p,key,row.id);
  else p[key]=p[key].filter(item=>item!==row);
  contentChange(p);
+}
+function removeButton(p,key,row){
+ const control=button(t('Remove'),()=>change(()=>removeRow(p,key,row)));
+ control.className='danger';
+ return control;
 }
 function jobStatus(p,row,candidateNumber){
  const label=el('label',t('Status')),select=el('select');
@@ -281,7 +293,7 @@ function pairPrompt(p,key,first,second,numbers){
 }
 function variantSection(p,key){
  const job=key==='jobs',noun=job?'Job':'Address';
- const container=section(p,key,job?'Jobs':'Addresses');container.classList.add('framed');
+ const container=section(p,key,job?'Jobs':'Addresses');
  const entries=groups(p[key]);
  if(picker?.person===p.id&&picker.key===key&&(entries.length<2||!entries.some(([row])=>row.id===picker.id)))picker=null;
  const pair=suggestedPair(p,key);
@@ -328,11 +340,11 @@ function variantSection(p,key){
    const fields=el('div',undefined,{className:'printed-fields'});
    rowFields(fields,p,key,row,{printed:true});
    const actions=el('div',undefined,{className:'version-actions'});
-   actions.append(button(t('Remove'),()=>change(()=>removeRow(p,key,row))));
    if(job&&row!==p.jobs[0])actions.append(button(t('Make primary'),()=>change(()=>{
     if(open)picker=null;
     primary(p,row.id);
    })));
+   actions.append(removeButton(p,key,row));
    version.append(fields,actions);
    renderProposals(version,p,key,{row});
    item.append(version);
@@ -349,9 +361,11 @@ function renderEditor(){
  if(picker?.person!==p.id)picker=null;
  const heading=el('div',undefined,{className:'editor-heading'});
  heading.append(el('h2',t('Contact review')),reviewActions(p));pane.append(heading);
- field(pane,'Main name (printed names, separated by spaces)',displayName(p),v=>{
+ const mainName=el('div',undefined,{className:'item version editor-fields'});
+ field(mainName,'Main name (printed names, separated by spaces)',displayName(p),v=>{
   manualChange(p,'display');p.display=v;contentChange(p);
  },{key:'display'});
+ pane.append(mainName);
  for(const view of [...keys.filter(k=>k!=='socials'),'linkedin','whatsapp','socials']){
   if(['jobs','addresses'].includes(view)){pane.append(variantSection(p,view));continue;}
   const service=['linkedin','whatsapp'].includes(view)?view:null,key=service?'socials':view;
@@ -360,8 +374,8 @@ function renderEditor(){
   if(key==='wechats')container.append(el('p',t('WeChat IDs are preserved in Monica Notes on import.'),{className:'hint'}));
   for(const record of p[key]){
    if(key==='socials'&&view!==socialView(record))continue;
-   const row=el('div',undefined,{className:'row row-'+key});
-   if(key==='names')row.append(el('small',t(record.origin==='generated'?'Generated simplified · editable':'Printed / manually entered')));
+   const version=el('div',undefined,{className:'version'});
+   const row=el('div',undefined,{className:'row row-'+key+(service?' row-'+service:'')});
    if(service==='whatsapp'){
     const label=el('label',t('Number source')),select=el('select');
     select.append(el('option',t('Independent number'),{value:''}));
@@ -372,23 +386,29 @@ function renderEditor(){
    }
    rowFields(row,p,key,record,{service});
    const actions=el('div',undefined,{className:'row-actions'});
-   actions.append(button(t('Remove'),()=>change(()=>removeRow(p,key,record))));
-   row.append(actions);container.append(row);
-   renderProposals(container,p,key,{row:record,view});
+   actions.append(removeButton(p,key,record));
+   row.append(actions);version.append(row);
+   renderProposals(version,p,key,{row:record,view});
+   container.append(version);
   }
   renderProposals(container,p,key,{view});
   pane.append(container);
  }
- pane.append(button(t('Add simplified variants'),()=>change(()=>{p.suppressed=[];addSimplified(p,convert);contentChange(p);})));
- field(pane,'Additional nicknames (comma separated)',p.nicknames,v=>{p.nicknames=v;contentChange(p);},{key:'nicknames'});
- field(pane,'Notes',p.notes,v=>{editNotes(p,v);contentChange(p);},{type:'textarea',key:'notes'});
- renderProposals(pane,p,'notes');
- pane.append(el('h3',t('First met')));
- const firstMet=el('div',undefined,{className:'first-met-fields'});
- for(const key of ['date','occasion','location','notes'])field(firstMet,key,p.firstMet[key],v=>{
+ const nicknames=el('div',undefined,{className:'item version editor-fields'});
+ nicknames.append(button(t('Add simplified variants'),()=>change(()=>{p.suppressed=[];addSimplified(p,convert);contentChange(p);})));
+ field(nicknames,'Additional nicknames (comma separated)',p.nicknames,v=>{p.nicknames=v;contentChange(p);},{key:'nicknames'});
+ const notes=el('div',undefined,{className:'item version editor-fields'});
+ field(notes,'Notes',p.notes,v=>{editNotes(p,v);contentChange(p);},{type:'textarea',key:'notes'});
+ renderProposals(notes,p,'notes');
+ const firstMet=el('div',undefined,{className:'item first-met'});
+ const firstMetHeading=el('div',undefined,{className:'field-heading item-heading'});
+ firstMetHeading.append(el('h3',t('First met')));
+ const firstMetFields=el('div',undefined,{className:'version first-met-fields'});
+ for(const key of ['date','occasion','location','notes'])field(firstMetFields,key,p.firstMet[key],v=>{
   p.firstMet[key]=v;contentChange(p);
  },{key:'firstMet',column:key,type:key==='date'?'date':key==='notes'?'textarea':'text'});
- pane.append(firstMet,reviewActions(p));
+ firstMet.append(firstMetHeading,firstMetFields);
+ pane.append(nicknames,notes,firstMet,reviewActions(p));
 }
 $('#files').onchange=async e=>{const cards=[];for(const file of e.target.files){if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>12*1024*1024){status('Use JPEG, PNG or WebP, up to 12 MB per card.');continue;}const id=crypto.randomUUID();assets.set(id,{file,url:URL.createObjectURL(file),name:file.name,rotation:0});cards.push(id);}if(cards.length)change(s=>{for(const id of cards){const p=person(id);s.push(p);selection.add(p.id);active=p.id;}});e.target.value='';};
 $('#all').onclick=()=>{for(const p of h.state)selection.add(p.id);render();};$('#none').onclick=()=>{selection.clear();render();};
@@ -512,6 +532,7 @@ async function exportDownload(individual){
 $('#combined').onclick=()=>exportDownload(false);
 $('#individual').onclick=()=>exportDownload(true);
 for(const b of document.querySelectorAll('[data-close]'))b.onclick=()=>b.closest('dialog').close();
+$('#showSetup').onclick=()=>$('#setupDialog').showModal();
 const leave=e=>{e.preventDefault();e.returnValue='';};let warned=false;
 function updateWarning(){const dirty=pendingEdit||busy||exporting||h.state.some(p=>p.suggestions.length>0||exports.get(p.uid)!==signature(p));if(dirty&&!warned){window.addEventListener('beforeunload',leave);warned=true;}if(!dirty&&warned){window.removeEventListener('beforeunload',leave);warned=false;}}
 render();status('Ready · model {0}. Add card images to begin.',session.model);
