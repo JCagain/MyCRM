@@ -15,6 +15,12 @@ Repairs for the seven findings from the 2026-11-18 implementation review are in 
 | [Monica modification specification](MONICA-SPEC.md) | Implemented and verified | [Plan](MONICA-PLAN.md), [pinned source](../monica/UPSTREAM.md), [reproducible verification](MONICA-RUNBOOK.md). The user approved metadata-only access; no real contact records or card files were inspected. |
 | [Local deployment configuration](../compose.yaml) | Verified repair image deployed to the local instance on 2026-11-18 | [Prepared override](../deploy/monica/compose.organization.yaml), [deployment/recovery runbook](MONICA-RUNBOOK.md). [Live deployment verification](#live-deployment) |
 
+## card2vcf interface language
+
+The header's **Language** control switches the interface between English and Simplified Chinese without reloading. English is the default for each new session. Switching preserves the current cards, contact data, and selections. The app displays model-generated warning text as returned by the model.
+
+Verified on 2026-11-19 with 32 unit tests and 8 Edge browser tests. The [language switch test](../card2vcf/tests/browser/ui-language.test.mjs) covers both directions, model status and extraction errors, the batch and export dialogs, and preservation of the export preview at 390 px.
+
 ## Local demo changes
 
 - On 2026-11-19, the local `stacked-same-job-demo.html` moved the selection count directly below the selection controls and placed **Mark reviewed** and **Delete** on one row above **Set first met**. The contact review checkboxes read **Reviewed**, and the job dropdowns read **Status**. Verified in Edge at 1440 px and 390 px viewport widths.

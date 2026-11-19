@@ -233,7 +233,7 @@ export function reconcileRead(p,card,data,convert,{draft,atDispatch}={}){
   }
   if(repeat||touched||displayEdit||scoped.length){
    const reason=wholeCard?'Confirm this card’s subject before accepting this value.':touched||displayEdit?'This value affects a field you edited.':'';
-   propose({...context,value,message:unique([reason,...newWarnings.map(w=>w.message)].filter(Boolean)).join(' ')},token);
+   propose({...context,value,reason,message:unique([reason,...newWarnings.map(w=>w.message)].filter(Boolean)).join(' ')},token);
   }else{
    accepted.push(candidate);
    seen.add(token);

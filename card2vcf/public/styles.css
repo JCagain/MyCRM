@@ -110,3 +110,5 @@ button.danger:hover{background:#fff0ed}
 @media(max-width:450px){.printed-fields{grid-template-columns:minmax(0,1fr)}}
 .printed-fields input{min-width:0}
 .suggestion{overflow-wrap:anywhere}
+.ui-language{display:flex;align-items:center;gap:6px;margin:0}
+.ui-language select{width:auto}

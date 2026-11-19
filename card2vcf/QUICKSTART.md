@@ -57,6 +57,8 @@ npm.cmd start
 
 Open **http://127.0.0.1:8765** in Edge or Chrome. Click **Check model** and look for **Model reachable**. The check does not send card data and does not guarantee OCR accuracy.
 
+For the Simplified Chinese interface, see [card2vcf interface language](../docs/IMPLEMENTATION.md#card2vcf-interface-language).
+
 Select your images, extract, review, then export. The default extraction timeout is five minutes per card; Cancel remains available.
 
 If you previously configured an API key but now run llama without one, clear it in the app's PowerShell window before starting:
