@@ -92,7 +92,7 @@ function deletePeople(ps){
 }
 function reviewActions(p){
  const actions=el('div',undefined,{className:'review-actions'});
- const review=el('label',t('Reviewed against source cards'),{className:'review'}),check=el('input',undefined,{type:'checkbox',checked:p.reviewed,disabled:busy});
+ const review=el('label',t('Reviewed'),{className:'review'}),check=el('input',undefined,{type:'checkbox',checked:p.reviewed,disabled:busy});
  check.onchange=()=>{const problem=check.checked?reviewProblem(p):'';if(problem){check.checked=p.reviewed;return status(problem);}change(()=>p.reviewed=check.checked);};
  review.prepend(check);
  const remove=button(t('Delete person'),()=>deletePeople([p]));remove.className='danger';remove.disabled=busy;
@@ -149,27 +149,36 @@ function renderImages(){
 const fieldNames={wechats:'WeChat'};
 function section(p,key,title,addLabel=key,extra={}){
  const variants=key==='jobs'||key==='addresses';
- const container=el('div',undefined,{className:variants?'field-section framed':'field-section item contact-fields'});
- const heading=el('div',undefined,{className:variants?'field-heading':'field-heading item-heading'});
+ const container=el('div',undefined,{className:variants?'field-section framed':'field-section contact-fields'});
+ const heading=el('div',undefined,{className:'field-heading'});
  heading.append(el('h3',t(title)),button(t('Add {0}',t(addLabel)),()=>change(()=>{
   p[key].push({...Object.fromEntries(definitions[key].map(f=>[f,''])),id:crypto.randomUUID(),origin:'manual',edited:true,...extra});
   initialize(p);contentChange(p);
+ })));
+ if(key==='names')heading.append(button(t('Add simplified variants'),()=>change(()=>{
+  p.suppressed=[];addSimplified(p,convert);contentChange(p);
  })));
  container.append(heading);
  return container;
 }
 function proposal(p,item){
  const box=el('div',undefined,{className:'suggestion'});
+ const actions=el('div',undefined,{className:'actions'});
+ const hasValue=item.value!==undefined;
  box.append(el('strong',t('Extraction suggestion · {0}',assets.get(item.card)?.name??t('Source card'))));
- if(item.value!==undefined){
+ if(hasValue){
   const values=typeof item.value==='string'?[item.value]:definitions[item.key].map(field=>item.value[field]).filter(Boolean);
-  box.append(el('p',values.join(' · ')),button(t('Accept value'),()=>change(()=>resolveProposal(p,item,true,convert))));
+  box.append(el('p',values.join(' · ')));
+  actions.append(button(t('Accept value'),()=>change(()=>resolveProposal(p,item,true,convert))));
  }
  if(item.message){
   const message=item.reason?t(item.reason)+item.message.slice(item.reason.length):item.message;
   box.append(el('p',message,{className:'warning'}));
  }
- box.append(button(t(item.value===undefined?'Acknowledge':'Dismiss'),()=>change(()=>resolveProposal(p,item,false,convert))));
+ const dismiss=button(t(hasValue?'Dismiss':'Acknowledge'),()=>change(()=>resolveProposal(p,item,false,convert)));
+ if(hasValue)dismiss.classList.add('danger');
+ actions.append(dismiss);
+ box.append(actions);
  return box;
 }
 function sourceWarnings(p,id){
@@ -344,11 +353,7 @@ function variantSection(p,key){
   if(open&&trigger)item.append(variantPicker(p,key,entries,source,index+1,trigger));
   for(const [versionIndex,row] of group.entries()){
    const version=el('div',undefined,{id:'variant-'+row.id,className:'version row-'+key});
-   if(linked){
-    const versionHeading=el('div',t('Printed version {0}',versionIndex+1),{className:'version-heading'});
-    if(job&&versionIndex===0)versionHeading.append(el('span',t('Preferred version'),{className:'preferred-version-label'}));
-    version.append(versionHeading);
-   }
+   if(linked&&job&&versionIndex===0)version.append(el('div',t('Preferred version'),{className:'preferred-version-label'}));
    const fields=el('div',undefined,{className:'printed-fields'});
    rowFields(fields,p,key,row,{printed:true});
    const actions=el('div',undefined,{className:'version-actions'});
@@ -373,17 +378,20 @@ function renderEditor(){
  if(picker?.person!==p.id)picker=null;
  const heading=el('div',undefined,{className:'editor-heading'});
  heading.append(el('h2',t('Contact review')),reviewActions(p));pane.append(heading);
- const mainName=el('div',undefined,{className:'item version editor-fields'});
- field(mainName,'Main name (printed names, separated by spaces)',displayName(p),v=>{
-  manualChange(p,'display');p.display=v;contentChange(p);
- },{key:'display'});
- pane.append(mainName);
  for(const view of [...keys.filter(k=>k!=='socials'),'linkedin','whatsapp','socials']){
   if(['jobs','addresses'].includes(view)){pane.append(variantSection(p,view));continue;}
   const service=['linkedin','whatsapp'].includes(view)?view:null,key=service?'socials':view;
   const label=service==='linkedin'?'LinkedIn':service==='whatsapp'?'WhatsApp':fieldNames[key];
   const container=section(p,key,label??key[0].toUpperCase()+key.slice(1),label??key,service?{label:service}:{});
   if(key==='wechats')container.append(el('p',t('WeChat IDs are preserved in Monica Notes on import.'),{className:'hint'}));
+  const stack=el('div',undefined,{className:'item'});
+  if(key==='names'){
+   const mainName=el('div',undefined,{className:'version editor-fields'});
+   field(mainName,'Main name (printed names, separated by spaces)',displayName(p),v=>{
+    manualChange(p,'display');p.display=v;contentChange(p);
+   },{key:'display'});
+   stack.append(mainName);
+  }
   for(const record of p[key]){
    if(key==='socials'&&view!==socialView(record))continue;
    const version=el('div',undefined,{className:'version'});
@@ -401,21 +409,21 @@ function renderEditor(){
    actions.append(removeButton(p,key,record));
    row.append(actions);version.append(row);
    renderProposals(version,p,key,{row:record,view});
-   container.append(version);
+   stack.append(version);
   }
+  if(stack.childElementCount)container.append(stack);
   renderProposals(container,p,key,{view});
   pane.append(container);
  }
  const nicknames=el('div',undefined,{className:'item version editor-fields'});
- nicknames.append(button(t('Add simplified variants'),()=>change(()=>{p.suppressed=[];addSimplified(p,convert);contentChange(p);})));
  field(nicknames,'Additional nicknames (comma separated)',p.nicknames,v=>{p.nicknames=v;contentChange(p);},{key:'nicknames'});
  const notes=el('div',undefined,{className:'item version editor-fields'});
  field(notes,'Notes',p.notes,v=>{editNotes(p,v);contentChange(p);},{type:'textarea',key:'notes'});
  renderProposals(notes,p,'notes');
- const firstMet=el('div',undefined,{className:'item first-met'});
- const firstMetHeading=el('div',undefined,{className:'field-heading item-heading'});
+ const firstMet=el('div',undefined,{className:'field-section first-met'});
+ const firstMetHeading=el('div',undefined,{className:'field-heading'});
  firstMetHeading.append(el('h3',t('First met')));
- const firstMetFields=el('div',undefined,{className:'version first-met-fields'});
+ const firstMetFields=el('div',undefined,{className:'item version first-met-fields'});
  for(const key of ['date','occasion','location','notes'])field(firstMetFields,key,p.firstMet[key],v=>{
   p.firstMet[key]=v;contentChange(p);
  },{key:'firstMet',column:key,type:key==='date'?'date':key==='notes'?'textarea':'text'});
@@ -496,7 +504,7 @@ $('#extract').onclick=async()=>{
  const wasCancelled=cancelled;
  status('{0}{1} completed; {2} failed. Select failed drafts to retry.',()=>wasCancelled?t('Stopped. '):'',done,failed);
 };
-function exportPeople(){if(busy)throw new UiError('Wait for extraction to finish, or cancel it before exporting.');const ps=selected();if(!ps.length)throw new UiError('No people selected. Tick their checkboxes in the list, or choose Select all reviewed people.');const pending=ps.filter(p=>!p.reviewed||p.suggestions.length);if(pending.length)throw new UiError('{0} of {1} selected people still need review. Resolve extraction suggestions, then tick Reviewed against source cards at the top or bottom of each contact form, or use Mark reviewed in the sidebar.',pending.length,ps.length);return ps;}
+function exportPeople(){if(busy)throw new UiError('Wait for extraction to finish, or cancel it before exporting.');const ps=selected();if(!ps.length)throw new UiError('No people selected. Tick their checkboxes in the list, or choose Select all reviewed people.');const pending=ps.filter(p=>!p.reviewed||p.suggestions.length);if(pending.length)throw new UiError('{0} of {1} selected people still need review. Resolve extraction suggestions, then tick Reviewed at the top or bottom of each contact form, or use Mark reviewed in the sidebar.',pending.length,ps.length);return ps;}
 function exportFeedback(error){exportError=error;const message=localizeError(error);$('#exportError').textContent=message;$('#exportError').hidden=!message;$('#combined').disabled=exporting||!!message;$('#individual').disabled=exporting||!!message;}
 function downloadFilename(extension){
  const name=$('#exportFilename').value.trim().replace(/\.(vcf|zip)$/i,'').trim();

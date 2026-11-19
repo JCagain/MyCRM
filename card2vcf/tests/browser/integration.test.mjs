@@ -21,7 +21,7 @@ test('integration controls, metadata history, all downloads and fictional re-ext
   await page.goto(url);await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Ready'));
   await page.locator('#files').setInputFiles(images.map((buffer,i)=>({name:`fictional-${i}.png`,mimeType:'image/png',buffer})));
   await page.locator('#extract').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('2 completed'));await page.locator('#combine').click();
-  const jobs=page.locator('.row-jobs'),addresses=page.locator('.row-addresses'),reviews=page.getByLabel('Reviewed against source cards');
+  const jobs=page.locator('.row-jobs'),addresses=page.locator('.row-addresses'),reviews=page.getByRole('checkbox',{name:'Reviewed',exact:true});
   const jobSection=page.locator('.framed').filter({has:page.getByRole('heading',{name:'Jobs',exact:true})});
   const addressSection=page.locator('.framed').filter({has:page.getByRole('heading',{name:'Addresses',exact:true})});
   const jobItems=jobSection.locator('.item');
@@ -44,8 +44,10 @@ test('integration controls, metadata history, all downloads and fictional re-ext
   await candidate.click();assert.equal(await reviews.first().isChecked(),false);
   assert.equal(await jobItems.first().locator('.version').count(),2);
   assert.equal(await jobItems.first().getByText('Primary',{exact:true}).count(),1);
+  await expect(jobItems.first().getByText(/Printed version \d+/)).toHaveCount(0);
   await expect(jobItems.first().getByRole('button',{name:'Make primary'})).toHaveCount(0);
   await page.locator('#uiLanguage').selectOption('zh-CN');
+  await expect(jobItems.first().getByText(/印刷版本 \d+/)).toHaveCount(0);
   await expect(jobs.first().getByText('首选版本',{exact:true})).toBeVisible();
   await expect(jobs.nth(1).getByRole('button',{name:'设为首选版本'})).toBeVisible();
   await expect(page.getByRole('button',{name:'设为主要任职'})).toHaveCount(1);
@@ -76,6 +78,8 @@ test('integration controls, metadata history, all downloads and fictional re-ext
   assert.equal(await addresses.count(),2);
   await addressSection.getByRole('button',{name:'Link with…'}).first().click();
   await addressSection.locator('.link-picker').getByRole('button',{name:/Address 2/}).click();
+  await expect(addressSection.locator('.linked .version')).toHaveCount(2);
+  await expect(addressSection.getByText(/Printed version \d+/)).toHaveCount(0);
   await wa.first().getByLabel('Number source').selectOption({index:1});
   const phone=page.locator('.row-phones').first().getByLabel('value',{exact:true});
   await phone.fill('555-0111');await phone.press('Tab');

@@ -37,7 +37,7 @@ test('invert selection, combined bilingual fields, WeChat editing, downloads and
   await page.setViewportSize({width:1440,height:1000});await page.locator('#undo').click();assert.equal(await page.locator('#people .person').count(),2);await page.locator('#redo').click();assert.equal(await page.locator('.row-emails').count(),1);
   await values.first().fill('fictional_edited');await values.first().press('Tab');await page.getByRole('button',{name:'Add WeChat',exact:true}).click();
   await values.nth(1).fill('fictional_manual');await values.nth(1).press('Tab');await rows.nth(1).getByRole('button',{name:'Remove',exact:true}).click();assert.equal(await rows.count(),1);await page.locator('#undo').click();assert.equal(await rows.count(),2);await page.locator('#redo').click();assert.equal(await rows.count(),1);
-  await page.getByLabel('Reviewed against source cards').first().check();await page.locator('#export').click();
+  await page.getByRole('checkbox',{name:'Reviewed',exact:true}).first().check();await page.locator('#export').click();
   for(const zip of [false,true]){
    const waiting=page.waitForEvent('download');await page.locator(zip?'#individual':'#combined').click();const bytes=await readFile(await (await waiting).path()),text=zip?strFromU8(Object.values(unzipSync(bytes))[0]):bytes.toString('utf8'),parsed=new ICAL.Component(ICAL.parse(text));
    for(const prop of ['email','tel','adr','org','x-wechat'])assert.equal(parsed.getAllProperties(prop).length,1,prop);assert.equal(parsed.getFirstPropertyValue('x-wechat'),'fictional_edited');assert.match(parsed.getFirstPropertyValue('note'),/WeChat: fictional_edited/);assert.equal(parsed.getAllProperties('photo').length,2);

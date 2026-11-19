@@ -23,6 +23,17 @@ async function checkToolbarLayout(page,{add,check,setup,close,selection}){
   expect(checkBox.x-titleBox.x-titleBox.width).toBeCloseTo(6,0);
   expect(helpBox.x-checkBox.x-checkBox.width).toBeCloseTo(6,0);
   expect(toolbarBox.y).toBeGreaterThanOrEqual(headerBox.y+headerBox.height);
+  const [exportBox,noticeBox]=await Promise.all([toolbar.locator('#export').boundingBox(),toolbar.locator('.notice').boundingBox()]);
+  expect(noticeBox.x).toBeGreaterThan(exportBox.x+exportBox.width);
+  expect(noticeBox.y).toBeLessThan(exportBox.y+exportBox.height);
+  await expect(toolbar.locator('.notice')).toHaveCSS('background-color','rgba(0, 0, 0, 0)');
+  await expect(toolbar.locator('.notice')).toHaveCSS('color','rgb(98, 64, 12)');
+  const dividers=toolbar.locator('.toolbar-divider');
+  await expect(dividers).toHaveCount(3);
+  expect(await dividers.evaluateAll(elements=>elements.map(divider=>{
+   const line=divider.getBoundingClientRect(),control=divider.previousElementSibling,button=control.getBoundingClientRect();
+   return [control.id||control.querySelector('input').id,line.left-button.right,line.width,line.height,line.top>=button.top&&line.bottom<=button.bottom];
+  }))).toEqual([['files',8,2,26,true],['cancel',8,2,26,true],['redo',8,2,26,true]]);
   const alignment=await page.locator('aside>.actions').evaluateAll(rows=>rows.map(row=>getComputedStyle(row).justifyContent));
   expect(alignment).toEqual(['center','center','center','center']);
   const colors=await page.locator('.selection-actions button,#batch').evaluateAll(buttons=>buttons.map(button=>getComputedStyle(button).backgroundColor));
@@ -59,6 +70,8 @@ test('switch UI languages in a working session without navigating or changing co
  page.on('pageerror',error=>errors.push(error.message));
  await page.goto(url);
  await expect(page.locator('#status')).toContainText('Ready');
+ await expect(page.locator('.notice')).toHaveText('Closing or refreshing this tab discards your session. Export before leaving.');
+ await expect(page.locator('.notice')).toHaveCSS('font-size','13px');
  let navigations=0;
  page.on('framenavigated',()=>navigations++);
  const language=page.locator('#uiLanguage');
@@ -71,13 +84,19 @@ test('switch UI languages in a working session without navigating or changing co
  await page.getByLabel('Main name (printed names, separated by spaces)').fill('Export');
  await language.selectOption('zh-CN');
  await expect(page.locator('html')).toHaveAttribute('lang','zh-CN');
+ await expect(page.locator('.notice')).toHaveText('关闭或刷新此标签页会丢弃当前会话。请在离开前导出。');
+ await expect(page.getByRole('complementary',{name:'名片列表'}).getByRole('heading',{name:'名片列表'})).toBeVisible();
+ await expect(page.locator('#batch').locator('..')).toHaveText('标记为已核对设置初会信息');
+ await expect(page.locator('#editor').getByRole('checkbox',{name:'已核对',exact:true})).toHaveCount(2);
+ await expect(page.locator('#deleteSelected').locator('..')).toHaveText('删除');
  await expect(page.getByRole('combobox',{name:'界面语言'})).toBeVisible();
  await expect(page.locator('#modelStatus')).toContainText('模型可连接 · fictional');
  await expect(page.locator('#status')).toContainText('失败 1 项');
  await expect(page.locator('#images .warning')).toContainText('模型服务返回 HTTP 503');
  await expect(page.locator('#selectionCount')).toHaveText('已选择 1 位联系人');
  await checkToolbarLayout(page,{add:'添加名片',check:'检查模型',setup:'启动本地模型服务（PowerShell）',close:'关闭',selection:['全选','清除选择','反选']});
- await expect(page.getByLabel('主姓名（用空格分隔名片上的多个姓名）')).toHaveValue('Export');
+ const names=page.locator('.contact-fields').filter({has:page.getByRole('heading',{name:'姓名',exact:true})});
+ await expect(names.getByLabel('主姓名（用空格分隔名片上的多个姓名）')).toHaveValue('Export');
  await page.getByRole('button',{name:'旋转',exact:true}).click();
  await page.locator('#reviewSelected').click();
  await expect(page.locator('#status')).toContainText('已核对');

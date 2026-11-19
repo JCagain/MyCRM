@@ -40,22 +40,26 @@ npm.cmd start</code></pre>
 <p>Optional: if you later enable <code>--api-key</code> on the model server, set the same value in <code>$env:CARD2VCF_API_KEY</code> before starting card2vcf. Otherwise leave both unset.</p>
 </dialog>
 <div class="card-toolbar">
-  <label class="button">Add cards<input id="files" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden></label>
+  <span class="toolbar-divided"><label class="button">Add cards<input id="files" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden></label><span class="toolbar-divider" aria-hidden="true"></span></span>
   <button id="extract">Extract selected</button>
   <button id="retry">Retry failed</button>
-  <button id="cancel" disabled>Cancel</button>
+  <span class="toolbar-divided"><button id="cancel" disabled>Cancel</button><span class="toolbar-divider" aria-hidden="true"></span></span>
   <button id="undo">Undo</button>
-  <button id="redo">Redo</button>
-  <button id="export">Export</button>
+  <span class="toolbar-divided"><button id="redo">Redo</button><span class="toolbar-divider" aria-hidden="true"></span></span>
+  <div class="toolbar-export">
+    <button id="export">Export</button>
+    <p class="notice">Closing or refreshing this tab discards your session. Export before leaving.</p>
+  </div>
 </div>
-<p class="notice">Closing or refreshing this tab discards your session. Export before leaving. Images and contacts stay local. Add a card (one or both sides) or a self-introduction screenshot about one person. No mode switch needed.</p><p id="status" role="status" aria-live="polite">Add card images or self-introduction screenshots to begin.</p>
+<p id="status" role="status" aria-live="polite">Add card images or self-introduction screenshots to begin.</p>
 <main>
-  <aside>
+  <aside aria-labelledby="cardsTitle">
+    <h2 id="cardsTitle">List of cards</h2>
     <div class="actions selection-actions"><button id="all">Select all</button><button id="none">Clear</button><button id="invert" title="Select unchecked people and clear checked people.">Invert selection</button></div>
     <p id="selectionCount" class="selection-count" aria-live="polite">0 people selected</p>
     <div class="actions"><button id="combine">Link</button><button id="detach" title="Tick source cards on the open person, then detach them into a new person.">Detach</button></div>
-    <div class="actions"><button id="reviewSelected">Mark reviewed</button><button id="deleteSelected" class="danger">Delete</button></div>
-    <div class="actions"><button id="batch">Set first met</button></div>
+    <div class="actions"><button id="reviewSelected">Mark reviewed</button><button id="batch">Set first met</button></div>
+    <div class="actions"><button id="deleteSelected" class="danger">Delete</button></div>
     <div id="people"></div>
   </aside>
   <section id="images"><p>Choose a person to view their cards.</p></section>

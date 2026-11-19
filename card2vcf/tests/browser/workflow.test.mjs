@@ -24,8 +24,8 @@ test('compact review, selected batch actions, detach and personalized downloads'
   assert.equal(await page.locator('header #batch').count(),0);
   assert.equal(await page.locator('aside #batch').count(),1);
   assert.equal(await page.locator('#export').textContent(),'Export');
-  assert.deepEqual(await page.locator('aside > .actions, aside > .selection-count').allTextContents(),[
-   'Select allClearInvert selection','0 people selected','LinkDetach','Mark reviewedDelete','Set first met'
+  assert.deepEqual(await page.locator('aside > h2, aside > .actions, aside > .selection-count').allTextContents(),[
+   'List of cards','Select allClearInvert selection','0 people selected','LinkDetach','Mark reviewedSet first met','Delete'
   ]);
   assert.equal(await page.locator('#selectionCount').evaluate(count=>getComputedStyle(count).fontSize),'16px');
   assert.equal(await page.locator('#files').isVisible(),false,'Add cards hides the native file input');
@@ -33,26 +33,29 @@ test('compact review, selected batch actions, detach and personalized downloads'
   await page.locator('#reviewSelected').click();assert.match(await page.locator('#status').textContent(),/Nothing was marked reviewed/);
   await page.locator('#extract').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('3 completed'));
   await page.locator('#people .person button').nth(2).click();
-  const reviews=page.getByLabel('Reviewed against source cards');assert.equal(await reviews.count(),2);
+  const reviews=page.getByRole('checkbox',{name:'Reviewed',exact:true});assert.equal(await reviews.count(),2);
   assert.equal(await page.locator('.editor-heading').getByRole('button',{name:'Delete person',exact:true}).count(),1);
   const phone=page.locator('.row-phones').first();
   const job=page.locator('#editor .framed .item').first();
   const contactGroups=page.locator('#editor .contact-fields');
-  assert.deepEqual(await contactGroups.locator('h3').allTextContents(),['Names','Phones','Emails','WeChat','Websites','LinkedIn','WhatsApp','Socials']);
+  assert.deepEqual(await page.locator('#editor .field-section > .field-heading > h3').allTextContents(),['Names','Jobs','Phones','Emails','WeChat','Addresses','Websites','LinkedIn','WhatsApp','Socials','First met']);
+  assert.equal(await page.locator('#editor .item h3').count(),0);
   const frameStyle=element=>{const style=getComputedStyle(element);return [style.borderColor,style.borderRadius];};
-  const background=element=>getComputedStyle(element).backgroundColor;
-  assert.deepEqual(await contactGroups.first().evaluate(frameStyle),await job.evaluate(frameStyle));
-  const jobHeaderColor=await job.locator('.item-heading').evaluate(background);
-  const otherHeaders=page.locator('#editor .contact-fields>.item-heading, #editor .first-met>.item-heading');
-  assert.deepEqual(await otherHeaders.evaluateAll(elements=>elements.map(element=>getComputedStyle(element).backgroundColor)),Array(9).fill(jobHeaderColor));
+  assert.deepEqual(await contactGroups.first().locator(':scope > .item').evaluate(frameStyle),await job.evaluate(frameStyle));
+  assert.equal(await contactGroups.locator('.item .row').count(),await contactGroups.locator('.row').count());
+  assert.ok(await contactGroups.evaluateAll(sections=>sections.every(section=>
+   section.querySelectorAll(':scope > .item').length===Number(Boolean(section.querySelector('.version')))
+  )));
   const firstMet=page.locator('.first-met-fields');
   const whatsapp=page.locator('.row-whatsapp').first();
   for(const width of [1440,1100,800,390]){
    await page.setViewportSize({width,height:1000});
    const combineBox=await page.locator('#combine').boundingBox(),detachBox=await page.locator('#detach').boundingBox();
    assert.equal(combineBox.y,detachBox.y,`Link and Detach share a row at ${width}px`);
-   const reviewBox=await page.locator('#reviewSelected').boundingBox(),deleteBox=await page.locator('#deleteSelected').boundingBox();
-   assert.equal(reviewBox.y,deleteBox.y,`Mark reviewed and Delete share a row at ${width}px`);
+   const [reviewBox,batchBox,deleteBox,sidebarBox]=await Promise.all(['#reviewSelected','#batch','#deleteSelected','aside'].map(selector=>page.locator(selector).boundingBox()));
+   assert.equal(reviewBox.y,batchBox.y,`Mark reviewed and Set first met share a row at ${width}px`);
+   assert.ok(batchBox.x>reviewBox.x&&deleteBox.y>=batchBox.y+batchBox.height,`Delete sits below the paired actions at ${width}px`);
+   assert.equal(sidebarBox.width,width>650?256:width-20);
    const boxes=await Promise.all([phone.locator('.field-label input').boundingBox(),phone.locator('.field-value input').boundingBox(),phone.getByRole('button',{name:'Remove',exact:true}).boundingBox()]);
    assert.ok(Math.abs(boxes[0].y-boxes[1].y)<2,`phone fields share a row at ${width}px`);
    assert.ok(Math.abs(boxes[0].y+boxes[0].height-boxes[2].y-boxes[2].height)<2,`Remove shares the row at ${width}px`);
@@ -110,17 +113,28 @@ test('fictional browser workflow: extract, combine, undo, edit, export, warning 
  assert.equal(await page.locator('#people .person').count(),2);await page.locator('#combine').click();assert.equal(await page.locator('#people .person').count(),1);await page.locator('#undo').click();assert.equal(await page.locator('#people .person').count(),2);await page.locator('#redo').click();assert.equal(await page.locator('#people .person').count(),1);
  await page.locator('#export').click();assert.equal(await page.locator('#exportDialog').isVisible(),true);assert.match(await page.locator('#exportError').textContent(),/still need review/);assert.equal(await page.locator('#combined').isDisabled(),true);await page.locator('#goReview').click();assert.equal(await page.locator('#exportDialog').isVisible(),false);
  const names=page.locator('.row-names');
+ const nameSection=page.locator('.contact-fields').filter({has:page.getByRole('heading',{name:'Names',exact:true})});
+ const nameStack=nameSection.locator(':scope > .item');
+ assert.equal(await nameStack.count(),1);
+ assert.equal(await nameStack.locator(':scope > .version').first().getByLabel('Main name (printed names, separated by spaces)').inputValue(),'陳大文 David Chan');
+ assert.equal(await nameStack.locator(':scope > .version > .row-names').count(),3);
+ assert.deepEqual(await nameStack.locator(':scope > .version').evaluateAll(rows=>rows.map(row=>getComputedStyle(row).borderTopWidth)),['0px','1px','1px','1px']);
  assert.deepEqual(await names.locator('small').allTextContents(),['Generated simplified']);
  const generated=names.filter({hasText:'Generated simplified'});
  assert.equal(await generated.getByRole('textbox',{name:'value',exact:true}).inputValue(),'陈大文');
  assert.equal(await generated.locator('.field-value small').count(),1);
+ await generated.getByRole('button',{name:'Remove',exact:true}).click();
+ assert.equal(await generated.count(),0);
+ await nameSection.getByRole('button',{name:'Add simplified variants',exact:true}).click();
+ assert.equal(await generated.getByRole('textbox',{name:'value',exact:true}).inputValue(),'陈大文');
  await page.locator('#uiLanguage').selectOption('zh-CN');
  assert.deepEqual(await names.locator('small').allTextContents(),['生成的简体姓名']);
+ assert.equal(await page.locator('.contact-fields').filter({has:page.getByRole('heading',{name:'姓名',exact:true})}).getByRole('button',{name:'添加简体姓名',exact:true}).count(),1);
  await page.locator('#uiLanguage').selectOption('en');
- const main=page.getByLabel('Main name (printed names, separated by spaces)');assert.equal(await main.inputValue(),'陳大文 David Chan');await main.fill('陳大文 David Chan Edited');await main.press('Tab');await page.getByLabel('Reviewed against source cards').first().check();
+ const main=page.getByLabel('Main name (printed names, separated by spaces)');assert.equal(await main.inputValue(),'陳大文 David Chan');await main.fill('陳大文 David Chan Edited');await main.press('Tab');await page.getByRole('checkbox',{name:'Reviewed',exact:true}).first().check();
  await page.locator('#extract').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('2 completed'));assert.equal(await main.inputValue(),'陳大文 David Chan Edited');
- assert.equal(await page.locator('.suggestion').count(),0);assert.equal(await page.getByLabel('Reviewed against source cards').first().isChecked(),true);
- await page.locator('#batch').click();await page.locator('#batchForm input[name=occasion]').fill('Fictional conference');await page.locator('#batchForm button[type=submit], #batchForm button:not([type])').click();assert.equal(await page.getByLabel('Reviewed against source cards').first().isChecked(),true);
+ assert.equal(await page.locator('.suggestion').count(),0);assert.equal(await page.getByRole('checkbox',{name:'Reviewed',exact:true}).first().isChecked(),true);
+ await page.locator('#batch').click();await page.locator('#batchForm input[name=occasion]').fill('Fictional conference');await page.locator('#batchForm button[type=submit], #batchForm button:not([type])').click();assert.equal(await page.getByRole('checkbox',{name:'Reviewed',exact:true}).first().isChecked(),true);
  await page.getByRole('button',{name:'Rotate',exact:true}).first().click();await page.locator('#export').click();assert.ok((await page.locator('#preview').textContent()).includes('NICKNAME:陈大文'));assert.equal((await page.locator('#preview').textContent()).includes('base64'),false);const downloadEvent=page.waitForEvent('download');await page.locator('#individual').click();const download=await downloadEvent;assert.equal(download.suggestedFilename(),'contacts.zip');await assertDownloadPhotos(download,true,[2]);await page.locator('#exportDialog [data-close]').click();
  await main.fill('陳大文 David Chan Changed');await main.press('Tab');const dialogEvent=page.waitForEvent('dialog');const reloading=page.reload({timeout:2000}).catch(()=>{});const dialog=await dialogEvent;assert.equal(dialog.type(),'beforeunload');await dialog.dismiss();await reloading;assert.equal(await page.locator('#people .person').count(),1);
  page.once('dialog',d=>d.accept());await page.reload();await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Ready'));assert.equal(await page.locator('#people .person').count(),0);assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);assert.deepEqual(errors,[]);
@@ -129,6 +143,6 @@ test('fictional browser workflow: extract, combine, undo, edit, export, warning 
 
 test('retry only failures and keep warning after partial export',async()=>{
  let calls=0;const fake=http.createServer(async(req,res)=>{if(req.url==='/v1/models'){res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({data:[{id:'fictional'}]}));}for await(const c of req){}calls++;res.setHeader('Content-Type','application/json');if(calls===2){res.statusCode=500;return res.end('{}');}res.end(JSON.stringify({choices:[{message:{content:JSON.stringify({names:['Fictional Contact '+calls]})}}]}));});const endpoint=await listen(fake),app=createApp({endpoint:endpoint+'/v1',model:'fictional',key:''}),url=await listen(app);let browser;
- try{browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage({acceptDownloads:true});await page.goto(url);await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Ready'));await page.locator('#files').setInputFiles([{name:'one.png',mimeType:'image/png',buffer:png},{name:'two.png',mimeType:'image/png',buffer:png}]);await page.locator('#extract').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('1 failed'));assert.equal(calls,2);await page.locator('#retry').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('1 completed; 0 failed'));assert.equal(calls,3);await page.getByLabel('Reviewed against source cards').first().check();await page.locator('#none').click();await page.locator('#people input[type=checkbox]').nth(1).check();await page.locator('#export').click();const saving=page.waitForEvent('download');await page.locator('#combined').click();await saving;await page.locator('#exportDialog [data-close]').click();const waiting=page.waitForEvent('dialog'),reloading=page.reload({timeout:2000}).catch(()=>{});const dialog=await waiting;assert.equal(dialog.type(),'beforeunload');await dialog.dismiss();await reloading;assert.equal(await page.locator('#people .person').count(),2);
+ try{browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage({acceptDownloads:true});await page.goto(url);await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('Ready'));await page.locator('#files').setInputFiles([{name:'one.png',mimeType:'image/png',buffer:png},{name:'two.png',mimeType:'image/png',buffer:png}]);await page.locator('#extract').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('1 failed'));assert.equal(calls,2);await page.locator('#retry').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('1 completed; 0 failed'));assert.equal(calls,3);await page.getByRole('checkbox',{name:'Reviewed',exact:true}).first().check();await page.locator('#none').click();await page.locator('#people input[type=checkbox]').nth(1).check();await page.locator('#export').click();const saving=page.waitForEvent('download');await page.locator('#combined').click();await saving;await page.locator('#exportDialog [data-close]').click();const waiting=page.waitForEvent('dialog'),reloading=page.reload({timeout:2000}).catch(()=>{});const dialog=await waiting;assert.equal(dialog.type(),'beforeunload');await dialog.dismiss();await reloading;assert.equal(await page.locator('#people .person').count(),2);
  }finally{await browser?.close();app.closeAllConnections();app.close();fake.closeAllConnections();fake.close();}
 });

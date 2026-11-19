@@ -72,7 +72,14 @@ test('combined first reads apply independently and review pairs appear during a 
  assert.equal(await page.locator('#images .suggestion').count(),1);
  assert.equal(await page.locator('#editor .suggestion').count(),3);
  assert.equal(await page.getByText('Check the website.').isVisible(),true);
- await page.getByText('https://unclear.example.invalid',{exact:true}).locator('..').getByRole('button',{name:'Accept value'}).click();
+ const websiteSuggestion=page.getByText('https://unclear.example.invalid',{exact:true}).locator('..');
+ const accept=websiteSuggestion.getByRole('button',{name:'Accept value'}),dismiss=websiteSuggestion.getByRole('button',{name:'Dismiss'});
+ const [acceptBox,dismissBox]=await Promise.all([accept.boundingBox(),dismiss.boundingBox()]);
+ assert.equal(acceptBox.y,dismissBox.y);
+ assert.ok(acceptBox.x+acceptBox.width<dismissBox.x);
+ const textColor=button=>getComputedStyle(button).color;
+ assert.equal(await dismiss.evaluate(textColor),await page.locator('#deleteSelected').evaluate(textColor));
+ await accept.click();
  assert.equal(await page.locator('.row-websites input').last().inputValue(),'https://unclear.example.invalid');
  for(const button of await page.getByRole('button',{name:'Dismiss',exact:true}).all().then(items=>items.reverse()))await button.click();
  await page.getByRole('button',{name:'Acknowledge'}).click();
