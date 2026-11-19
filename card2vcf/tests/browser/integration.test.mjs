@@ -23,13 +23,14 @@ test('integration controls, metadata history, all downloads and fictional re-ext
   await page.locator('#extract').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('2 completed'));await page.locator('#combine').click();
   const jobs=page.locator('.row-jobs'),addresses=page.locator('.row-addresses'),reviews=page.getByLabel('Reviewed against source cards');
   const whatsapp=page.locator('.field-section').filter({has:page.getByRole('heading',{name:'WhatsApp',exact:true})}),wa=whatsapp.locator('.row-socials');
-  assert.equal(await jobs.count(),3);assert.equal(await jobs.first().getByLabel('Job status').inputValue(),'unspecified');assert.equal(await wa.first().getByLabel('Number source').inputValue(),'');
+  assert.equal(await jobs.count(),3);assert.equal(await jobs.first().getByLabel('Job status').inputValue(),'current');assert.equal(await wa.first().getByLabel('Number source').inputValue(),'');
   await jobs.nth(1).getByLabel('Job status').selectOption('former');
   await jobs.nth(0).getByLabel('Select variant').check();await jobs.nth(1).getByLabel('Select variant').check();
   await page.locator('.field-section').filter({has:page.getByRole('heading',{name:'Jobs',exact:true})}).getByRole('button',{name:'Link selected language variants'}).click();
   assert.match(await page.locator('#status').textContent(),/same status/);assert.equal(await page.locator('[data-language-group]').count(),0);
-  await jobs.nth(1).getByLabel('Job status').selectOption('unspecified');await reviews.first().check();
+  await jobs.nth(1).getByLabel('Job status').selectOption('current');await reviews.first().check();
   await page.locator('.field-section').filter({has:page.getByRole('heading',{name:'Jobs',exact:true})}).getByRole('button',{name:'Link selected language variants'}).click();assert.equal(await reviews.first().isChecked(),false);
+  await jobs.first().getByLabel('Job status').selectOption('unspecified');assert.equal(await jobs.nth(1).getByLabel('Job status').inputValue(),'unspecified');
   await jobs.first().getByLabel('Job status').selectOption('current');assert.equal(await jobs.nth(1).getByLabel('Job status').inputValue(),'current');
   await jobs.nth(2).getByLabel('Job status').selectOption('former');await jobs.nth(1).getByRole('button',{name:'Make primary'}).click();assert.equal(await jobs.first().getByLabel('company',{exact:true}).inputValue(),'\u793a\u4f8b');
   for(let i=0;i<2;i++)await addresses.nth(i).getByLabel('Select variant').check();
@@ -41,6 +42,7 @@ test('integration controls, metadata history, all downloads and fictional re-ext
   for(const width of [1440,800,390]){await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,`no overflow at ${width}`);assert.equal(await wa.first().getByLabel('Number source').isVisible(),true);}
   await page.setViewportSize({width:1440,height:1000});
   await page.getByRole('button',{name:'Add jobs',exact:true}).click();
+  assert.equal(await jobs.last().getByLabel('Job status').inputValue(),'current');
   await reviews.first().check();await page.locator('#export').click();
   const downloads=new Map();
   for(const mode of ['monica','structured'])for(const zip of [false,true]){

@@ -56,3 +56,7 @@ Using fictional fixtures only, demonstrate extraction response handling, manual 
 ## Implemented defaults
 - Individual VCF exports use one ZIP download.
 - Image limit: 12 MB per JPEG, PNG or WebP. App binds to 127.0.0.1:8765.
+
+## Amendment to the converter job-status default
+
+Newly extracted or manually added job rows default to Current. Preserve user-selected statuses during re-extraction. This supersedes the initial job status in the [integration plan](INTEGRATION-PLAN.md#state-and-editing-decisions).

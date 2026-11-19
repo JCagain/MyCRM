@@ -6,6 +6,7 @@ export function fixture(){const p=person('front');applyExtraction(p,'front',vali
 
 export function contractFixture(){
  const p=fixture();
+ setStatus(p,p.jobs[0].id,'unspecified');
  p.jobs.push({company:'Example',title:'Another role',status:'current'},{company:'Company only',title:'',status:'unspecified'},{company:'',title:'Title only',status:'former'});
  p.addresses.push({street:'Independent road',city:'Example City'});
  p.socials.push({label:'WhatsApp',value:'555-0100'});

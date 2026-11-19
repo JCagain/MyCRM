@@ -35,6 +35,7 @@ The additions below are implemented in source. The specification remains authori
 
 ### Review layout and batch actions
 
+- Long people lists scroll within the selection panel, with the selection count and batch controls above the scrolling area. Verified that the last of 30 fictional entries can be selected and cleared on desktop and narrow screens.
 - Detach cards sits beside Combine. First met batch editing is in the selection area rather than the page header.
 - Repeatable label/value/remove controls share a row. Reviewed and Delete person controls appear beside the Contact review title and again at the bottom.
 - Mark selected reviewed applies to the full selection only if everyone has a main name and no unresolved extraction suggestions; otherwise none are approved.
@@ -95,6 +96,7 @@ The local Monica instance at `http://localhost:8080` was upgraded from the stock
 
 ## Updates
 
+- 2026-11-19: Implemented the [card2vcf job-status default](../card2vcf/SPEC.md#amendment-to-the-converter-job-status-default). Verification covers extracted and manually added jobs, explicit status changes on linked rows, and preservation of status during re-extraction. See [browser coverage](../card2vcf/tests/browser/integration.test.mjs) and [metadata tests](../card2vcf/tests/contact-metadata.test.mjs).
 - 2026-11-18: Implemented the Monica [plan](MONICA-PLAN.md) in a pinned source tree, with schema/domain services, import review and existing editor/list extensions. Added reproducible fictional [verification and deployment instructions](MONICA-RUNBOOK.md), production build definition and upgrade/rollback rehearsal.
 - 2026-11-17: Started Monica implementation from pinned v4.1.2 source and upstream tests. Added an isolated fictional Compose project, additive organization migration, initial work/backfill/contact-method services and VCF normalizer/adapters. This work is in progress; schema and feature acceptance are not yet certified. The production compose configuration, credentials and private data remain untouched.
 - 2026-11-17: Completed the converter-side [integration plan](../card2vcf/INTEGRATION-PLAN.md), reconciled its checklist with the implemented source, added complete fictional contract/browser coverage and a reproducible PHP parser harness, and provided the [Monica handoff](../card2vcf/INTEGRATION-PLAN.md#verification-and-importer-handoff). Updated index/spec status without claiming importer completion. Parser verification was performed after the already-present exporter changes; no contract incompatibility was found.

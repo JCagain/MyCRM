@@ -8,6 +8,11 @@
 [hidden]{display:none!important}
 main{grid-template-columns:220px minmax(220px,.8fr) minmax(420px,1.3fr)}
 aside>.actions button{font-size:13px;padding:6px 8px}
+#people {
+  max-height: 55vh;
+  max-height: 55dvh;
+  overflow-y: auto;
+}
 .selection-count,.hint{font-size:12px;color:#55665e;margin:6px 0 10px}
 button.danger{color:#943a30}
 button.danger:hover{background:#fff0ed}
