@@ -1,4 +1,11 @@
 const simplified = {
+ 'Retry edited':'重新提取已编辑图片',
+ 'Crop and brightness':'裁剪和亮度',
+ 'Crop left (%)':'左侧裁剪 (%)',
+ 'Crop top (%)':'顶部裁剪 (%)',
+ 'Crop right (%)':'右侧裁剪 (%)',
+ 'Crop bottom (%)':'底部裁剪 (%)',
+ 'Brightness (%)':'亮度 (%)',
  'Language':'界面语言',
  'Add cards':'添加名片',
  'Extract selected':'提取所选',

@@ -8,7 +8,10 @@ import {translate,UiError} from './ui-language.mjs';
 const $=s=>document.querySelector(s),h=new History(),assets=new Map(),exports=new Map(),selection=new Set(),cardSelection=new Set();
 let active=null,busy=false,controller=null,cancelled=false,exporting=false;
 let picker=null,pendingEdit=null,fieldRender=null,pointerDown=false,fieldRenderPending=false;
-const failures=new Map();const outcomes=new Map(); let retryOnly=false;
+const failures=new Map();const outcomes=new Map(); const pendingCards=new Set();
+const awaitingRead=p=>p.cards.some(id=>pendingCards.has(id));
+const settings=a=>JSON.stringify([a.rotation,a.brightness,...a.crop]);
+const edited=a=>settings(a)!==a.lastRead;
 const session=await fetch('/session').then(r=>r.json());
 const convert=OpenCC.Converter({from:'t',to:'cn'});
 let language='en',statusMessage,modelMessage,exportMessage,exportError;
@@ -77,7 +80,8 @@ function selectionControls(){
  $('#selectionCount').textContent=t('{0} {1} selected',count,count===1?'person':'people');
  $('#combine').disabled=busy||count<2;
  $('#detach').disabled=busy||!p||p.cards.length<2;
- $('#reviewSelected').disabled=busy||!count;
+ $('#reviewSelected').disabled=!count||selected().some(awaitingRead);
+ $('#retryEdited').disabled=busy||!selected().some(p=>p.cards.some(id=>edited(assets.get(id))));
  $('#deleteSelected').disabled=busy||!count;
  $('#batch').disabled=busy||!count;
 }
@@ -90,10 +94,14 @@ function deletePeople(ps){
  change(s=>{for(let i=s.length-1;i>=0;i--)if(ids.has(s[i].id))s.splice(i,1);});
  status('{0} {1} deleted. Undo is available.',ps.length,ps.length===1?'person':'people');
 }
+function jumpToSuggestion(){
+ const box=$('#images .suggestion, #editor .suggestion');
+ if(box){box.scrollIntoView({block:'center'});box.querySelector('button')?.focus({preventScroll:true});}
+}
 function reviewActions(p){
  const actions=el('div',undefined,{className:'review-actions'});
- const review=el('label',t('Reviewed'),{className:'review'}),check=el('input',undefined,{type:'checkbox',checked:p.reviewed,disabled:busy});
- check.onchange=()=>{const problem=check.checked?reviewProblem(p):'';if(problem){check.checked=p.reviewed;return status(problem);}change(()=>p.reviewed=check.checked);};
+ const review=el('label',t('Reviewed'),{className:'review'}),check=el('input',undefined,{type:'checkbox',checked:p.reviewed,disabled:awaitingRead(p)});
+ check.onchange=()=>{const problem=check.checked?reviewProblem(p):'';if(problem){check.checked=p.reviewed;jumpToSuggestion();return status(problem);}change(()=>p.reviewed=check.checked);};
  review.prepend(check);
  const remove=button(t('Delete person'),()=>deletePeople([p]));remove.className='danger';remove.disabled=busy;
  actions.append(review,remove);return actions;
@@ -140,8 +148,33 @@ function renderImages(){
   row.append(label,img,open,button(t('Rotate'),()=>{
    if(busy)return status('Cancel extraction before rotating.');
    a.rotation=(a.rotation+90)%360;
-   img.style.transform=`rotate(${a.rotation}deg)`;
+   img.style.transform=`rotate(${a.rotation}deg)`;refresh();
   }));
+  const canvas=el('canvas');canvas.setAttribute('aria-label',img.alt);
+  img.after(canvas);
+  const refresh=()=>{
+   const cropped=a.crop.some(Boolean);
+   canvas.hidden=!cropped;img.hidden=cropped;
+   img.style.filter='brightness('+a.brightness+'%)';
+   if(cropped&&img.naturalWidth)drawSource(canvas,img,a,900);
+   selectionControls();
+  };
+  img.onload=refresh;refresh();
+  const edits=el('details');edits.append(el('summary',t('Crop and brightness')));
+  const controls=[];
+  for(const [i,key] of ['Crop left (%)','Crop top (%)','Crop right (%)','Crop bottom (%)','Brightness (%)'].entries()){
+   const label=el('label',t(key));
+   const input=el('input',undefined,{type:'range',min:i===4?10:0,max:i===4?200:99-a.crop[(i+2)%4],value:i===4?a.brightness:a.crop[i],disabled:busy});
+   input.setAttribute('aria-label',t(key));
+   const value=el('span',input.value+'%');controls.push(input);
+   input.oninput=()=>{
+    if(i===4)a.brightness=Number(input.value);
+    else{a.crop[i]=Number(input.value);controls[(i+2)%4].max=99-a.crop[i];}
+    value.textContent=input.value+'%';refresh();
+   };
+   label.append(value,input);edits.append(label);
+  }
+  row.append(edits);
   if(failures.has(id))row.append(el('p',localizeError(failures.get(id)),{className:'warning'}));
   row.append(...sourceWarnings(p,id));pane.append(row);
  }
@@ -312,10 +345,12 @@ function variantSection(p,key){
   const item=el('div',undefined,{className:linked?'item linked':'item'});
   if(linked)item.dataset.languageGroup=source.alternativeGroupId;
   const heading=el('div',undefined,{className:'item-heading'+(isPrimary?' primary-job-heading':'')});
-  const details=isPrimary?el('div',undefined,{className:'job-heading-details'}):heading;
-  details.append(el('strong',noun+' '+(index+1)));
-  if(job)details.append(jobStatus(p,source));
-  if(isPrimary)heading.append(details,el('strong',t('Primary'),{className:'primary-job-label'}));
+  const title=el('strong',noun+' '+(index+1));
+  if(isPrimary){
+   const group=el('div',undefined,{className:'job-title'});
+   group.append(title,el('strong',t('Primary'),{className:'primary-job-label'}));heading.append(group);
+  }else heading.append(title);
+  if(job)heading.append(jobStatus(p,source));
   const controls=el('div',undefined,{className:'link-controls'});
   const open=picker?.person===p.id&&picker.key===key&&picker.id===source.id;
   if(job&&!isPrimary){
@@ -372,6 +407,22 @@ function variantSection(p,key){
  renderProposals(container,p,key);
  return container;
 }
+function pairNameFields(stack,names){
+ const fields=new Map(names.map((name,index)=>[name,stack.children[index+1]]));
+ const originals=names.filter(name=>name.origin!=='generated');
+ for(const generated of names.filter(name=>name.origin==='generated')){
+  const original=originals.find(name=>name.id===generated.generatedFrom)
+   ??originals.find(name=>name.value!==generated.value&&convert(name.value)===generated.value);
+  if(!original)continue;
+  const left=fields.get(original);
+  let pair=left.closest('.name-pair');
+  if(!pair){
+   pair=el('div',undefined,{className:'name-pair'});
+   left.before(pair);pair.append(left,el('div',undefined,{className:'simplified-names'}));
+  }
+  pair.lastElementChild.append(fields.get(generated));
+ }
+}
 function renderEditor(){
  const pane=$('#editor'),p=current();pane.replaceChildren();
  if(!p)return;
@@ -411,6 +462,7 @@ function renderEditor(){
    renderProposals(version,p,key,{row:record,view});
    stack.append(version);
   }
+  if(key==='names')pairNameFields(stack,p.names);
   if(stack.childElementCount)container.append(stack);
   renderProposals(container,p,key,{view});
   pane.append(container);
@@ -430,18 +482,18 @@ function renderEditor(){
  firstMet.append(firstMetHeading,firstMetFields);
  pane.append(nicknames,notes,firstMet,reviewActions(p));
 }
-$('#files').onchange=async e=>{const cards=[];for(const file of e.target.files){if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>12*1024*1024){status('Use JPEG, PNG or WebP, up to 12 MB per card.');continue;}const id=crypto.randomUUID();assets.set(id,{file,url:URL.createObjectURL(file),name:file.name,rotation:0});cards.push(id);}if(cards.length)change(s=>{for(const id of cards){const p=person(id);s.push(p);selection.add(p.id);active=p.id;}});e.target.value='';};
+$('#files').onchange=async e=>{const cards=[];for(const file of e.target.files){if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>12*1024*1024){status('Use JPEG, PNG or WebP, up to 12 MB per card.');continue;}const id=crypto.randomUUID();const asset={file,url:URL.createObjectURL(file),name:file.name,rotation:0,brightness:100,crop:[0,0,0,0]};asset.lastRead=settings(asset);assets.set(id,asset);cards.push(id);}if(cards.length)change(s=>{for(const id of cards){const p=person(id);s.push(p);selection.add(p.id);active=p.id;}});e.target.value='';};
 $('#all').onclick=()=>{for(const p of h.state)selection.add(p.id);render();};$('#none').onclick=()=>{selection.clear();render();};
 $('#invert').onclick=()=>{for(const p of h.state)selection.has(p.id)?selection.delete(p.id):selection.add(p.id);render();};
 $('#combine').onclick=()=>{if(selected().length<2)return status('Select at least two people to combine.');change(()=>{const ps=selected();active=ps[0].id;h.state=combine(h.state,ps.map(p=>p.id));selection.clear();selection.add(active);});};
 $('#detach').onclick=()=>{const p=current();if(busy||!p)return;if(!cardSelection.size||cardSelection.size===p.cards.length)return status('Tick some, but not all, source cards on the open person before detaching.');change(s=>detach(s,p.id,[...cardSelection]));status('Selected cards detached into a new person. Undo is available.');};
 $('#reviewSelected').onclick=()=>{
- if(busy)return;
+ if(selected().some(awaitingRead))return;
  const ps=selected();if(!ps.length)return;
  const blocked=ps.filter(reviewProblem);
  if(blocked.length){
   const problem=reviewProblem(blocked[0]);
-  active=blocked[0].id;render();
+  active=blocked[0].id;render();jumpToSuggestion();
   return status('{0} selected {1} a main name or resolved extraction suggestions. Nothing was marked reviewed. {2}',blocked.length,blocked.length===1?'person needs':'people need',()=>t(problem));
  }
  if(ps.every(p=>p.reviewed))return status('All selected people are already reviewed.');
@@ -452,16 +504,40 @@ $('#deleteSelected').onclick=()=>deletePeople(selected());
 $('#undo').onclick=()=>{h.undo();render();};$('#redo').onclick=()=>{h.redo();render();};
 $('#batch').onclick=()=>{if(!selected().length)return status('Select people first.');$('#batchForm').reset();$('#batchDialog').showModal();};
 $('#batchForm').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target);change(s=>batch(s,[...selection],Object.fromEntries(['date','occasion','location','notes'].map(k=>[k,f.get(k)])),f.has('overwrite')));$('#batchDialog').close();status('First met details updated. Undo is available.');};
-async function imageData(asset){if(!asset.rotation)return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(asset.file);});const img=await createImageBitmap(asset.file),canvas=document.createElement('canvas');const swap=asset.rotation%180!==0;canvas.width=swap?img.height:img.width;canvas.height=swap?img.width:img.height;const ctx=canvas.getContext('2d');ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(asset.rotation*Math.PI/180);ctx.drawImage(img,-img.width/2,-img.height/2);img.close();return canvas.toDataURL('image/jpeg',.95);}
-$('#retry').onclick=()=>{retryOnly=true;$('#extract').click();};
+function drawSource(canvas,image,asset,maxSize=Infinity){
+ const [left,top,right,bottom]=asset.crop;
+ const w=image.naturalWidth??image.width,h=image.naturalHeight??image.height;
+ const width=w*(100-left-right)/100,height=h*(100-top-bottom)/100;
+ const scale=Math.min(1,maxSize/Math.max(width,height)),swap=asset.rotation%180!==0;
+ canvas.width=Math.max(1,Math.round((swap?height:width)*scale));
+ canvas.height=Math.max(1,Math.round((swap?width:height)*scale));
+ const ctx=canvas.getContext('2d');
+ ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(asset.rotation*Math.PI/180);
+ ctx.filter='brightness('+asset.brightness+'%)';
+ ctx.drawImage(image,w*left/100,h*top/100,width,height,-width*scale/2,-height*scale/2,width*scale,height*scale);
+}
+function originalImageData(file){
+ return new Promise((resolve,reject)=>{
+  const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file);
+ });
+}
+async function imageData(asset){
+ if(!asset.rotation&&asset.brightness===100&&!asset.crop.some(Boolean))return originalImageData(asset.file);
+ const bitmap=await createImageBitmap(asset.file),canvas=document.createElement('canvas');
+ try{drawSource(canvas,bitmap,asset);return canvas.toDataURL('image/jpeg',.95);}finally{bitmap.close();}
+}
+$('#retry').onclick=()=>extract('failed');
+$('#retryEdited').onclick=()=>extract('edited');
 $('#cancel').onclick=()=>{cancelled=true;controller?.abort();status('Cancelling extraction…');};
-$('#extract').onclick=async()=>{
+$('#extract').onclick=()=>extract('all');
+async function extract(mode){
  if(!selected().length)return status('Select people to extract.');
  if(busy)return;
- busy=true;cancelled=false;render();
+ busy=true;cancelled=false;
  const queue=selected().flatMap(p=>p.cards.map(card=>({owner:p.id,card})))
-  .filter(task=>!retryOnly||outcomes.get(task.card)==='failed');
- retryOnly=false;
+  .filter(task=>mode==='all'||(mode==='edited'?edited(assets.get(task.card)):outcomes.get(task.card)==='failed'));
+ for(const task of queue)pendingCards.add(task.card);
+ render();
  let failed=0,done=0;
  for(const {owner,card} of queue){
   if(cancelled)break;
@@ -492,15 +568,16 @@ $('#extract').onclick=async()=>{
    if(reconcileRead(updated,card,result,convert,{draft:activeEdit(),atDispatch})){
     h.change(state=>{state[state.indexOf(now)]=updated;});
    }
+   pendingCards.delete(card);assets.get(card).lastRead=settings(assets.get(card));
    outcomes.set(card,'done');failures.delete(card);done++;
    render();
   }catch(e){
    if(request.signal.aborted||controller!==request)break;
-   outcomes.set(card,'failed');failures.set(card,e);failed++;
+   pendingCards.delete(card);outcomes.set(card,'failed');failures.set(card,e);failed++;
    render();
   }
  }
- busy=false;controller=null;render();
+ pendingCards.clear();busy=false;controller=null;render();
  const wasCancelled=cancelled;
  status('{0}{1} completed; {2} failed. Select failed drafts to retry.',()=>wasCancelled?t('Stopped. '):'',done,failed);
 };
@@ -536,10 +613,10 @@ async function exportDownload(individual){
  try{
   const ps=structuredClone(exportPeople()),filename=downloadFilename(individual?'zip':'vcf'),mode=$('#mode').value;
   // Snapshot original Files before awaiting: edits/deletion during preparation must not change this export.
-  const sources=ps.map(p=>p.cards.map(id=>{const a=assets.get(id);if(!a)throw new UiError('A source image is unavailable. Keep this session open and retry.');return {file:a.file,rotation:0};}));
+  const sources=ps.map(p=>p.cards.map(id=>{const a=assets.get(id);if(!a)throw new UiError('A source image is unavailable. Keep this session open and retry.');return a.file;}));
   exporting=true;exportFeedback();updateWarning();setExportNotice('Preparing download with original images…');
   const cards=[];
-  for(let i=0;i<ps.length;i++){const photos=[];for(const source of sources[i])photos.push(await imageData(source));cards.push(vcard(ps[i],mode,photos));}
+  for(let i=0;i<ps.length;i++){const photos=[];for(const source of sources[i])photos.push(await originalImageData(source));cards.push(vcard(ps[i],mode,photos));}
   if(individual){const files={};ps.forEach((p,i)=>{const name=displayName(p).replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').slice(0,65)||'contact';files[`${name}-${p.uid}.vcf`]=strToU8(cards[i]);});download(zipSync(files),filename,'application/zip');}
   else download(cards.join(''),filename,'text/vcard;charset=utf-8');
   exported(ps);

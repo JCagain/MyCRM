@@ -103,6 +103,7 @@ test('compact review, selected batch actions, detach and personalized downloads'
   await page.locator('#redo').click();assert.equal(await page.locator('#people .person').count(),3);
   await page.locator('#all').click();await page.locator('#extract').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('3 completed'));
   await page.locator('#reviewSelected').click();assert.match(await page.locator('#status').textContent(),/Nothing was marked reviewed/);assert.match(await page.locator('#status').textContent(),/suggestions/);
+  assert.ok(await page.locator('.suggestion :focus').count());
   assert.deepEqual(errors,[]);
  }finally{await browser?.close();app.closeAllConnections();app.close();fake.closeAllConnections();fake.close();}
 });
@@ -117,8 +118,16 @@ test('fictional browser workflow: extract, combine, undo, edit, export, warning 
  const nameStack=nameSection.locator(':scope > .item');
  assert.equal(await nameStack.count(),1);
  assert.equal(await nameStack.locator(':scope > .version').first().getByLabel('Main name (printed names, separated by spaces)').inputValue(),'陳大文 David Chan');
- assert.equal(await nameStack.locator(':scope > .version > .row-names').count(),3);
- assert.deepEqual(await nameStack.locator(':scope > .version').evaluateAll(rows=>rows.map(row=>getComputedStyle(row).borderTopWidth)),['0px','1px','1px','1px']);
+ assert.equal(await names.count(),3);
+ const pair=nameStack.locator('.name-pair input');
+ assert.deepEqual(await pair.evaluateAll(fields=>fields.map(field=>field.value)),['陳大文','陈大文']);
+ const viewport=page.viewportSize();
+ for(const width of [1440,390]){
+  await page.setViewportSize({width,height:900});
+  const [left,right]=await pair.evaluateAll(fields=>fields.map(field=>field.getBoundingClientRect().toJSON()));
+  assert.ok(right.x>=left.right&&right.y<left.bottom);
+ }
+ await page.setViewportSize(viewport);
  assert.deepEqual(await names.locator('small').allTextContents(),['Generated simplified']);
  const generated=names.filter({hasText:'Generated simplified'});
  assert.equal(await generated.getByRole('textbox',{name:'value',exact:true}).inputValue(),'陈大文');

@@ -135,3 +135,41 @@ test('cancelled and failed reads leave a combined source eligible for its first 
  assert.equal(await page.locator('.row-jobs').count(),2);
  assert.deepEqual(errors,[]);
 });
+
+test('review a finished person during extraction and retry only its edited source',{timeout:45000},async t=>{
+ const {page,request,errors}=await session(t);
+ const image=await page.evaluate(()=>{
+  const canvas=document.createElement('canvas');canvas.width=20;canvas.height=10;
+  const ctx=canvas.getContext('2d');ctx.fillStyle='rgb(200,200,200)';ctx.fillRect(0,0,20,10);
+  return canvas.toDataURL().split(',')[1];
+ });
+ const inputs=['first','second'].map(name=>({name:name+'.png',mimeType:'image/png',buffer:Buffer.from(image,'base64')}));
+ await page.locator('#files').setInputFiles(inputs);
+ await page.locator('#extract').click();
+ (await request(0))(front);
+ const second=await request(1);
+ const reviews=page.locator('#editor .review input');
+ assert.equal(await reviews.first().isDisabled(),true);
+ await page.locator('#people .person button').first().click();
+ await reviews.first().check();
+ second(back);
+ await statusContains(page,'2 completed');
+ await page.locator('#images summary').click();
+ for(const [label,value] of [['Crop left (%)',25],['Brightness (%)',50]]){
+  await page.getByRole('slider',{name:new RegExp(label.split(' (')[0])}).evaluate((slider,value)=>{slider.value=value;slider.dispatchEvent(new Event('input'));},value);
+ }
+ const upload=page.waitForRequest(req=>req.url().endsWith('/extract'));
+ await page.locator('#retryEdited').click();
+ const payload=(await upload).postDataJSON().image;
+ const pixels=await page.evaluate(async url=>{
+  const bytes=Uint8Array.from(atob(url.split(',')[1]),c=>c.charCodeAt(0));
+  const image=await createImageBitmap(new Blob([bytes],{type:'image/jpeg'}));
+  const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
+  ctx.drawImage(image,0,0);return [image.width,image.height,ctx.getImageData(4,4,1,1).data[0]];
+ },payload);
+ assert.deepEqual(pixels.slice(0,2),[15,10]);assert.ok(Math.abs(pixels[2]-100)<=2);
+ (await request(2))(front);
+ await statusContains(page,'1 completed');
+ assert.equal(await page.locator('#retryEdited').isDisabled(),true);
+ assert.deepEqual(errors,[]);
+});

@@ -27,7 +27,7 @@
 /* Keep review controls and related fields together without hiding any fields. */
 [hidden]{display:none!important}
 main{--cards-panel-width:256px;grid-template-columns:var(--cards-panel-width) minmax(220px,.8fr) minmax(420px,1.3fr)}
-#cardsTitle{margin:0 0 12px;text-align:center}
+#cardsTitle{margin:0 0 12px}
 aside>.actions{justify-content:center}
 aside>.actions button{font-size:13px;padding:6px 8px}
 .selection-actions button{background:#eaf3ff;border-color:#9ab7d4;color:#234363}
@@ -101,23 +101,22 @@ button.danger:hover{background:#fff0ed}
 .item-heading .make-primary{margin-left:0}
 .item-heading label{margin:0;display:flex;align-items:center;gap:5px}
 .item-heading select{width:auto;padding:3px 5px}
-.primary-job-heading{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);text-align:center}
-.primary-job-heading .job-heading-details{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;text-align:left}
+.job-title{display:inline-flex;align-items:baseline;gap:.6em;white-space:nowrap}
+.item-heading .primary-job-label{color:#285840;font-size:12px}
 .link-controls{display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-left:auto}
-@container (max-width:530px){
-  .primary-job-heading{display:flex}
-  .primary-job-heading .job-heading-details{display:contents}
-  .primary-job-heading .primary-job-label{order:1;flex-basis:100%}
-}
-@container (max-width:770px){
-  .linked .primary-job-heading{display:flex}
-  .linked .primary-job-heading .job-heading-details{display:contents}
-  .linked .primary-job-heading .primary-job-label{order:1;flex-basis:100%}
-}
+main h2{margin:0;color:#285840;text-align:start}
+.card details{margin-block:8px}
+.card details label span{margin-inline-start:.5em}
 .version{padding:10px;min-width:0}
 .item>.version+.version{border-top:1px solid #d6e1d8}
 .contact-fields{container-type:inline-size}
 .contact-fields .row{border:0;margin:0;padding:0}
+.name-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid #d6e1d8}
+.name-pair+.version{border-top:1px solid #d6e1d8}
+.simplified-names{min-width:0}
+@container (max-width:640px){
+  .name-pair .row-names{grid-template-columns:minmax(0,1fr)}
+}
 .contact-fields .version>.suggestion:last-child,.editor-fields>.suggestion:last-child{margin-bottom:0}
 .editor-fields>label{font-weight:600}
 .preferred-version-label{margin-bottom:7px;color:#216b3a;font-size:13px;text-align:end}
@@ -149,3 +148,6 @@ button.danger:hover{background:#fff0ed}
 .suggestion>.actions{margin-bottom:0}
 .ui-language{display:flex;align-items:center;gap:6px;margin:0}
 .ui-language select{width:auto}
+
+.card canvas{width:100%;max-height:440px;object-fit:contain}
+.card img[hidden]{display:none}

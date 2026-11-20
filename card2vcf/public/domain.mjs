@@ -40,6 +40,7 @@ function mergeRow(key,rows,row){
  if('label' in candidate)found.label=uniqueText([...(found.label||'').split(' / '),...(candidate.label||'').split(' / ')]).join(' / ');
  if(key==='names'){
   found.printedSources=unique([...found.printedSources,...candidate.printedSources]);
+  if(candidate.generatedFrom&&!found.generatedFrom)found.generatedFrom=candidate.generatedFrom;
   found.manualName=found.manualName||candidate.manualName;
   refreshNameOrigin(found);
  }
@@ -276,7 +277,7 @@ export function addSimplified(p,convert){
  for(const name of [...p.names]){
   if(name.origin==='generated')continue;
   const value=convert(name.value);
-  if(value!==name.value&&!p.suppressed.includes(value))mergeRow('names',p.names,{value,origin:'generated',sources:sourceIds(name)});
+  if(value!==name.value&&!p.suppressed.includes(value))mergeRow('names',p.names,{value,origin:'generated',generatedFrom:name.id,sources:sourceIds(name)});
  }
 }
 export function displayName(p){return p.display.trim()||uniqueText(p.names.filter(n=>n.origin!=='generated').map(n=>n.value.trim())).join(' ');}

@@ -15,6 +15,16 @@ Repairs for the seven findings from the 2026-11-18 implementation review are in 
 | [Monica modification specification](MONICA-SPEC.md) | Implemented and verified | [Plan](MONICA-PLAN.md), [pinned source](../monica/UPSTREAM.md), [reproducible verification](MONICA-RUNBOOK.md). The user approved metadata-only access; no real contact records or card files were inspected. |
 | [Local deployment configuration](../compose.yaml) | Verified repair image deployed to the local instance on 2026-11-18 | [Prepared override](../deploy/monica/compose.organization.yaml), [deployment/recovery runbook](MONICA-RUNBOOK.md). [Live deployment verification](#live-deployment) |
 
+## card2vcf source editing and review during extraction
+
+The Names editor places each generated Simplified Chinese name to the right of its Traditional Chinese source. The main name and unpaired names use full rows. The [workflow test](../card2vcf/tests/browser/workflow.test.mjs) verifies the pair at 1440 px and 390 px. All 32 unit tests and 9 Edge browser tests passed on 2026-11-20.
+
+The three workspace panels share a heading color and alignment. The primary job label stays beside its job number at desktop and mobile widths. Attempting review with a blocking suggestion moves focus to its first action. Each person becomes eligible for review once their own queued cards finish.
+
+Each source card has four edge crop controls and a brightness slider with a live preview. Extraction applies these settings and rotation. **Retry edited** processes selected cards whose settings differ from their last successful extraction, or from their original settings before the first success. Downloads embed the original source files.
+
+Verified with 32 unit tests and 9 Edge browser tests. The [source editing test](../card2vcf/tests/browser/combined-review.test.mjs) checks review during a batch and verifies the dimensions and brightness of the uploaded retry image.
+
 ## card2vcf primary job and export
 
 Implemented the [primary job and export amendment](../card2vcf/SPEC.md#amendment-to-primary-job-selection-and-export-defaults) in both interface languages. All 32 unit tests and 8 Edge browser tests passed. The [metadata test](../card2vcf/tests/contact-metadata.test.mjs) covers independent job and version order through Undo and Redo. The [Edge integration test](../card2vcf/tests/browser/integration.test.mjs) covers the editor controls, the default format and the exported job data in both formats. The [language test](../card2vcf/tests/browser/ui-language.test.mjs) checks the localized export guidance.

@@ -91,6 +91,8 @@ test('integration controls, metadata history, all downloads and fictional re-ext
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,`no overflow at ${width}`);
    assert.equal(await wa.first().getByLabel('Number source').isVisible(),true);
    const header=jobItems.first().locator('.item-heading');
+   const title=await header.locator('.job-title strong').evaluateAll(nodes=>nodes.map(node=>node.getBoundingClientRect().top));
+   assert.equal(title.length,2);assert.ok(Math.abs(title[0]-title[1])<=3);
    const trigger=await header.getByRole('button',{name:'Link with…'}).boundingBox();
    const unlink=await header.getByRole('button',{name:'Unlink',exact:true}).boundingBox();
    assert.ok(unlink.y>=trigger.y+trigger.height,`Unlink is below Link with at ${width}`);
