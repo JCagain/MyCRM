@@ -12,9 +12,11 @@ use App\Services\VCard\ImportVCard;
 use App\Services\VCard\ImportOrganization;
 use App\Services\VCard\OrganizationCard;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class OrganizationController extends Controller
 {
@@ -51,6 +53,30 @@ class OrganizationController extends Controller
         $input=$request->all();foreach (['closeness','importance'] as $d) if (($input[$d] ?? '')==='keep') unset($input[$d]);
         app(Batch::class)->execute(auth()->user()->account_id,$input);return back()->with('success','Selected people updated.');
     }
+    public function confirmDelete(Request $request, Batch $batch)
+    {
+        $contacts = $batch->contactsToDelete($request->user()->account_id, $request->post());
+
+        return view('people.organization-delete', [
+            'contacts' => $contacts,
+            'filters' => $request->query(),
+        ]);
+    }
+
+    public function deleteSelected(Request $request, Batch $batch)
+    {
+        $input = $request->post();
+        $people = redirect()->route('people.index', Arr::except($request->query(), 'page'));
+        try {
+            validator($input, ['confirmed' => 'required|accepted'])->validate();
+            $count = $batch->delete($request->user()->account_id, $input);
+        } catch (ValidationException $exception) {
+            return $people->withErrors($exception->errors());
+        }
+
+        return $people->with('success', trans_choice('people.people_bulk_delete_success', $count));
+    }
+
     public function settings()
     {
         $account=auth()->user()->account_id;app(Defaults::class)->execute($account);

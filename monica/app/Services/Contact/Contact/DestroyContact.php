@@ -7,6 +7,7 @@ use App\Models\Contact\Contact;
 use App\Services\QueuableService;
 use App\Services\DispatchableService;
 use App\Models\Relationship\Relationship;
+use Illuminate\Support\Facades\DB;
 use App\Services\Contact\Relationship\DestroyRelationship;
 
 class DestroyContact extends BaseService implements QueuableService
@@ -33,7 +34,7 @@ class DestroyContact extends BaseService implements QueuableService
      * @param  array  $data
      * @return void
      */
-    public function handle(array $data): void
+    public function handle(array $data, bool $deferCleanup = false): void
     {
         $this->validate($data);
 
@@ -42,9 +43,13 @@ class DestroyContact extends BaseService implements QueuableService
 
         $contact->throwInactive();
 
-        $this->destroyRelationships($data, $contact);
+        $this->destroyRelationships($data, $contact, $deferCleanup);
 
-        $contact->deleteAvatars();
+        if ($deferCleanup) {
+            DB::afterCommit(fn () => $contact->deleteAvatars());
+        } else {
+            $contact->deleteAvatars();
+        }
 
         if ($this->valueOrFalse($data, 'force_delete') === true) {
             $contact->forceDelete();
@@ -60,13 +65,13 @@ class DestroyContact extends BaseService implements QueuableService
      * @param  Contact  $contact
      * @return void
      */
-    private function destroyRelationships(array $data, Contact $contact)
+    private function destroyRelationships(array $data, Contact $contact, bool $deferCleanup)
     {
         $relationships = Relationship::where('contact_is', $contact->id)->get();
-        $this->destroySpecificRelationships($data, $relationships);
+        $this->destroySpecificRelationships($data, $relationships, $deferCleanup);
 
         $relationships = Relationship::where('of_contact', $contact->id)->get();
-        $this->destroySpecificRelationships($data, $relationships);
+        $this->destroySpecificRelationships($data, $relationships, $deferCleanup);
     }
 
     /**
@@ -76,14 +81,14 @@ class DestroyContact extends BaseService implements QueuableService
      * @param  \Illuminate\Support\Collection  $relationships
      * @return void
      */
-    private function destroySpecificRelationships(array $data, $relationships)
+    private function destroySpecificRelationships(array $data, $relationships, bool $deferCleanup)
     {
         foreach ($relationships as $relationship) {
             app(DestroyRelationship::class)
                 ->execute([
                     'account_id' => $data['account_id'],
                     'relationship_id' => $relationship->id,
-                ]);
+                ], deferCleanup: $deferCleanup);
         }
     }
 }

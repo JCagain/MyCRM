@@ -42,6 +42,8 @@ Route::middleware(['auth', 'verified', 'mfa'])->group(function () {
     Route::get('/settings/organization', [\App\Http\Controllers\OrganizationController::class,'settings'])->name('organization.settings');
     Route::post('/settings/organization', [\App\Http\Controllers\OrganizationController::class,'saveSettings'])->name('organization.settings.save');
     Route::post('/people/organization/batch', [\App\Http\Controllers\OrganizationController::class,'batch'])->name('organization.batch');
+    Route::post('/people/organization/delete/confirm', [\App\Http\Controllers\OrganizationController::class, 'confirmDelete'])->name('organization.delete.confirm');
+    Route::delete('/people/organization/delete', [\App\Http\Controllers\OrganizationController::class, 'deleteSelected'])->name('organization.delete');
     Route::post('/people/{contact}/organization/work', [\App\Http\Controllers\OrganizationController::class,'work'])->name('organization.work');
     Route::post('/people/{contact}/organization/methods', [\App\Http\Controllers\OrganizationController::class,'methods'])->name('organization.methods');
     Route::post('/people/{contact}/organization/addresses', [\App\Http\Controllers\OrganizationController::class,'addresses'])->name('organization.addresses');

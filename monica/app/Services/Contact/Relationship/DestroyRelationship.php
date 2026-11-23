@@ -29,7 +29,7 @@ class DestroyRelationship extends BaseService
      * @param  array  $data
      * @return bool
      */
-    public function execute(array $data): bool
+    public function execute(array $data, bool $deferCleanup = false): bool
     {
         $this->validate($data);
 
@@ -42,7 +42,7 @@ class DestroyRelationship extends BaseService
 
         $this->deleteRelationship($relationship);
 
-        $this->deletePartialContact($otherContact);
+        $this->deletePartialContact($otherContact, $deferCleanup);
 
         return true;
     }
@@ -67,7 +67,7 @@ class DestroyRelationship extends BaseService
      *
      * @param  Contact  $contact
      */
-    private function deletePartialContact(Contact $contact)
+    private function deletePartialContact(Contact $contact, bool $deferCleanup)
     {
         // the contact is partial - if the relationship is deleted, the partial
         // contact has no reason to exist anymore
@@ -80,10 +80,13 @@ class DestroyRelationship extends BaseService
                 ->count();
 
             if ($otherRelations == 0) {
-                DestroyContact::dispatch([
+                $deletion = DestroyContact::dispatch([
                     'account_id' => $contact->account_id,
                     'contact_id' => $contact->id,
                 ]);
+                if ($deferCleanup) {
+                    $deletion->afterCommit();
+                }
             }
         }
     }

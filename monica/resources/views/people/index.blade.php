@@ -29,6 +29,12 @@
     <!-- Page content -->
     <div class="main-content">
 
+      @if (session('success'))
+        <div class="{{ auth()->user()->getFluidLayout() }}">
+          @include('partials.notification')
+        </div>
+      @endif
+
       @if ($contactsCount == 0 && ! request()->hasAny(['company_id','tag_ids','closeness','importance','search','tags','no_tag']))
 
         @include('people.blank')

@@ -18,7 +18,20 @@ if (! $user) {
 $result=app(App\Services\VCard\ImportVCard::class)->execute(['account_id'=>$user->account_id,'user_id'=>$user->id,'entry'=>file_get_contents('/tmp/c2v-fictional.vcf'),'behaviour'=>App\Services\VCard\ImportVCard::BEHAVIOUR_REPLACE]);
 if (isset($result['error'])) throw new RuntimeException('Fictional browser import failed: '.$result['error']);
 $contact=App\Models\Contact\Contact::findOrFail($result['contact_id']);
+foreach (['Alpha', 'Beta', 'Gamma'] as $lastName) {
+    $identity = [
+        'account_id' => $user->account_id,
+        'first_name' => 'Fictional Bulk Delete',
+        'last_name' => $lastName,
+        'is_active' => true,
+        'is_partial' => false,
+        'is_dead' => false,
+    ];
+    if (! App\Models\Contact\Contact::where($identity)->exists()) {
+        factory(App\Models\Contact\Contact::class)->create($identity);
+    }
+}
 App\Models\Contact\ContactField::where('account_id',$user->account_id)->where('data','browser-fictional-wechat')->get()->each->delete();
-Illuminate\Support\Facades\DB::table('tags')->where('account_id',$user->account_id)->where('name','Browser tag')->delete();
+Illuminate\Support\Facades\DB::table('tags')->where('account_id',$user->account_id)->whereIn('name',['Browser tag','Browser extra tag'])->delete();
 Illuminate\Support\Facades\DB::table('tag_categories')->where('account_id',$user->account_id)->where('name','Browser category')->delete();
 echo json_encode(['profile'=>route('people.show',$contact,false),'work'=>route('people.work.edit',$contact,false)]).PHP_EOL;

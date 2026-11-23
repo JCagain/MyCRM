@@ -2,14 +2,20 @@
 namespace App\Services\Organization;
 use App\Models\Contact\Contact;
 use App\Models\Contact\Tag;
+use App\Services\Contact\Contact\DestroyContact;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 class Batch
 {
+    private const SELECTION_RULES = [
+        'contact_ids' => 'required|array|min:1|max:500',
+        'contact_ids.*' => 'required|integer|distinct',
+    ];
+
     public function execute(int $account,array $input): void
     {
-        validator($input,['contact_ids'=>'required|array|min:1|max:500','contact_ids.*'=>'required|integer|distinct','add_tags'=>'sometimes|array','remove_tags'=>'sometimes|array','add_tags.*'=>'integer|distinct','remove_tags.*'=>'integer|distinct','closeness'=>'sometimes|nullable|integer','importance'=>'sometimes|nullable|integer'])->validate();
+        validator($input, self::SELECTION_RULES + ['add_tags'=>'sometimes|array','remove_tags'=>'sometimes|array','add_tags.*'=>'integer|distinct','remove_tags.*'=>'integer|distinct','closeness'=>'sometimes|nullable|integer','importance'=>'sometimes|nullable|integer'])->validate();
         DB::transaction(function () use ($account,$input) {
             $contacts=Contact::where('account_id',$account)->whereIn('id',$input['contact_ids'])->lockForUpdate()->get();
             if ($contacts->count()!==count($input['contact_ids'])) abort(404);
@@ -22,6 +28,32 @@ class Batch
                 foreach (['closeness','importance'] as $dimension) if (array_key_exists($dimension,$input)) $contact->{$dimension.'_id'}=$input[$dimension];
                 $contact->save();
             }
+        });
+    }
+    public function contactsToDelete(int $account, array $input, bool $lock = false): Collection
+    {
+        $ids = validator($input, self::SELECTION_RULES)->validate()['contact_ids'];
+        $query = Contact::where('account_id', $account)->real()->whereIn('id', $ids)->orderBy('id');
+        $contacts = ($lock ? $query->lockForUpdate() : $query)->get();
+        abort_unless($contacts->count() === count($ids), 404);
+        $contacts->each->throwInactive();
+
+        return $contacts;
+    }
+
+    public function delete(int $account, array $input): int
+    {
+        return DB::transaction(function () use ($account, $input) {
+            $contacts = $this->contactsToDelete($account, $input, lock: true);
+            $destroy = app(DestroyContact::class);
+            foreach ($contacts as $contact) {
+                $destroy->handle([
+                    'account_id' => $account,
+                    'contact_id' => $contact->id,
+                ], deferCleanup: true);
+            }
+
+            return $contacts->count();
         });
     }
 }

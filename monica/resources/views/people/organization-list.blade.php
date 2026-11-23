@@ -5,10 +5,31 @@
 <form method="POST" action="{{ route('organization.batch') }}" aria-label="Batch edit people">@csrf
  @include('partials.errors')
  <fieldset class="pa3"><legend class="f6">Edit selected people on this page</legend>
- <label>Add tags <select name="add_tags[]" multiple class="form-control">@foreach($orgTags as $tag)<option value="{{ $tag->id }}">{{ $tag->name }}</option>@endforeach</select></label>
- <label>Remove tags <select name="remove_tags[]" multiple class="form-control">@foreach($orgTags as $tag)<option value="{{ $tag->id }}">{{ $tag->name }}</option>@endforeach</select></label>
+ <div class="mb3" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; max-width: 30rem">
+  @foreach (['add_tags' => 'Add tags', 'remove_tags' => 'Remove tags'] as $field => $label)
+   <details class="relative" name="batch-tag-actions">
+    <summary class="form-control pointer" style="box-sizing: border-box">{{ $label }} <span class="fr" aria-hidden="true">&#9662;</span></summary>
+    <div class="absolute left-0 right-0 z-2 ba b--silver br2 bg-white pa2 shadow-2" style="max-height: 14rem; overflow: auto; overflow-wrap: anywhere">
+     @forelse ($orgTags as $tag)
+      <label class="db mb1">
+       <input type="checkbox" name="{{ $field }}[]" value="{{ $tag->id }}" @checked(in_array($tag->id, (array) old($field)))> {{ $tag->name }}
+      </label>
+     @empty
+      <span class="f6">No tags available.</span>
+     @endforelse
+    </div>
+   </details>
+  @endforeach
+ </div>
  @foreach(['closeness','importance'] as $dimension)<label>{{ ucfirst($dimension) }} <select name="{{ $dimension }}" class="form-control"><option value="keep">Keep existing</option><option value="">Clear to Unrated</option>@foreach($orgLevels->where('dimension',$dimension) as $level)<option value="{{ $level->id }}">{{ $level->name }}</option>@endforeach</select></label>@endforeach
- <button class="btn btn-secondary">Apply to selected people</button>
+ <div class="flex flex-wrap items-center" style="gap: .5rem 1rem">
+  <button type="submit" class="btn btn-secondary">Apply to selected people</button>
+  @if ($active && $organizationContacts->isNotEmpty())
+   <button type="submit" class="btn btn-danger" formaction="{{ route('organization.delete.confirm', request()->query()) }}">
+    {{ trans('people.people_bulk_delete_action') }}
+   </button>
+  @endif
+ </div>
  </fieldset>
  <div style="overflow-x:auto"><table class="vgt-table"><thead><tr><th>Select</th><th>{{ trans('app.contact_list_avatar') }}</th><th>{{ trans('app.contact_list_name') }}</th><th>{{ trans('app.contact_list_description') }}</th><th>Last contacted</th></tr></thead><tbody>
  @forelse($organizationContacts as $person)<tr><td><input type="checkbox" name="contact_ids[]" value="{{ $person->id }}" aria-label="Select {{ $person->name }}"></td>

@@ -5,12 +5,27 @@
  $orgCategories=DB::table('tag_categories')->where('account_id',$orgAccount)->get()->keyBy('id');
 @endphp
 <form method="GET" class="mb3 pa3 ba b--light-gray br2" aria-label="People filters">
- <label>Search <input class="form-control" name="search" value="{{ request('search') }}"></label>
- <label>Company <select class="form-control" name="company_id"><option value="">All companies</option>
- @foreach (DB::table('companies')->where('account_id',$orgAccount)->orderBy('name')->get() as $company)
- <option value="{{ $company->id }}" @selected(request('company_id')==$company->id)>{{ $company->name }}</option>
- @endforeach</select></label>
- <label><input type="checkbox" name="include_former" value="1" @checked(request('include_former'))> Include former memberships</label>
+ <div class="flex flex-wrap items-end mb3" style="gap: .75rem 1rem">
+  <div style="flex: 0 1 12rem; max-width: 100%">
+   <label for="people-search-filter">Search</label>
+   <input class="form-control" id="people-search-filter" name="search" value="{{ request('search') }}">
+  </div>
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); align-items: end; gap: .75rem; width: min(100%, 26rem)">
+   <div>
+    <label for="people-company-filter">Company</label>
+    <select class="form-control" id="people-company-filter" name="company_id">
+     <option value="">All companies</option>
+     @foreach (DB::table('companies')->where('account_id',$orgAccount)->orderBy('name')->get() as $company)
+      <option value="{{ $company->id }}" @selected(request('company_id')==$company->id)>{{ $company->name }}</option>
+     @endforeach
+    </select>
+   </div>
+   <label class="flex items-center mb0 pb1" style="gap: .35rem">
+    <input type="checkbox" name="include_former" value="1" @checked(request('include_former'))>
+    <span>Include former memberships</span>
+   </label>
+  </div>
+ </div>
  @foreach ($orgTags->groupBy(fn($t)=>$t->category_id ?? 'uncategorized') as $category=>$tagsInCategory)
  <fieldset class="mb2"><legend class="f6">{{ $orgCategories[$category]->name ?? 'Uncategorized' }}</legend>
  @foreach ($tagsInCategory as $tag)<label class="mr2"><input type="checkbox" name="tag_ids[]" value="{{ $tag->id }}" @checked(in_array($tag->id,request('tag_ids',[])))> {{ $tag->name }}</label>@endforeach

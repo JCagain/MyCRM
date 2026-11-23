@@ -364,6 +364,45 @@ class OrganizationTest extends TestCase
     }
     public function test_existing_pages_render_new_controls_and_filtered_empty_state()
     {
+    public function test_bulk_delete_confirms_and_checks_the_whole_selection(): void
+    {
+        $account = $this->account();
+        $user = factory(User::class)->create(['account_id' => $account->id]);
+        app(\App\Services\User\AcceptPolicy::class)->execute([
+            'account_id' => $account->id,
+            'user_id' => $user->id,
+            'ip_address' => null,
+        ]);
+        $first = $this->contact($account);
+        $second = $this->contact($account);
+        $unselected = $this->contact($account);
+        $foreign = $this->contact($this->account());
+        $archived = $this->contact($account);
+        $archived->forceFill(['is_active' => false])->save();
+        $selection = ['contact_ids' => [$first->id, $second->id]];
+
+        $this->actingAs($user)
+            ->post(route('organization.delete.confirm'), $selection)
+            ->assertOk()->assertSee('Delete 2 contacts?')->assertSee($first->name)->assertSee($second->name);
+        $this->assertNotNull($first->fresh());
+        $this->delete(route('organization.delete'), $selection)->assertSessionHasErrors('confirmed');
+        $this->delete(route('organization.delete'), ['contact_ids' => [$first->id, $foreign->id], 'confirmed' => 1])
+            ->assertNotFound();
+        $this->delete(route('organization.delete'), ['contact_ids' => [$first->id, $archived->id], 'confirmed' => 1])
+            ->assertSessionHasErrors();
+        $this->assertNotNull($first->fresh());
+        $this->assertNotNull($second->fresh());
+
+        $this->delete(route('organization.delete', ['search' => 'fictional', 'page' => 2]), $selection + ['confirmed' => 1])
+            ->assertRedirect(route('people.index', ['search' => 'fictional']))
+            ->assertSessionHas('success', '2 contacts deleted.');
+        $this->assertSoftDeleted($first);
+        $this->assertSoftDeleted($second);
+        $this->assertNotNull($unselected->fresh());
+        $this->assertNotNull($foreign->fresh());
+        $this->assertNotNull($archived->fresh());
+    }
+
         Queue::fake();$a=$this->account();$user=factory(User::class)->create(['account_id'=>$a->id]);$p=$this->contact($a);$this->actingAs($user)->withoutMiddleware([
             \App\Http\Middleware\EnsureEmailIsVerified::class,
             \App\Http\Middleware\CheckCompliance::class,

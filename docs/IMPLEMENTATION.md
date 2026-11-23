@@ -1,6 +1,6 @@
 # Implementation record
 
-Updated: 2026-11-19. Maintenance rules: [AGENTS.md](../AGENTS.md).
+Updated: 2026-11-23. Maintenance rules: [AGENTS.md](../AGENTS.md).
 
 ## Status
 
@@ -58,6 +58,12 @@ The [Edge language test](../card2vcf/tests/browser/ui-language.test.mjs) verifie
 - The local demo centers **Primary job** in the job’s top bar. Verified in Edge at 1440 px, 390 px, and 320 px before linking, after linking, and after unlinking job versions.
 
 - Restored the **Status** dropdown to its original horizontal position in the local demo. **Primary job** stays centered and uses its own line within the top bar when space is tight. Verified in Edge with linked and separate job versions at desktop and mobile widths.
+
+## People page layout and bulk delete
+
+The [People page layout amendment](PEOPLE-PAGE-LAYOUT.md) is implemented in source. Bulk delete shows the selected names for confirmation, checks the full selection against the active account, and reuses the individual contact deletion service. Cancel returns to the same filtered list. Confirm returns to the first page of that list with a deletion count.
+
+The [Edge check](../deploy/monica/browser.mjs) passed at 1440 px and 390 px, including the paired company controls, equal tag dropdown widths, and cancel and confirm with fictional contacts. [PHP tests](../monica/tests/Feature/OrganizationTest.php) verify selection validation and account scope. The live deployment is pending.
 
 ## Monica implementation evidence
 
