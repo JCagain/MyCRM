@@ -4,10 +4,26 @@ use Illuminate\Support\Facades\DB;
 
 class Defaults
 {
+    private const RATING_KEYS = [
+        'closeness' => ['acquaintance', 'familiar', 'close'],
+        'importance' => ['low', 'medium', 'high'],
+    ];
+
+    public static function ratingLabel(object $level): string
+    {
+        $key = self::RATING_KEYS[$level->dimension][$level->seed_key] ?? null;
+        if ($key !== null && $level->name === trans('organization.settings.'.$key, [], 'en')) {
+            return trans('organization.settings.'.$key);
+        }
+
+        return $level->name;
+    }
+
     public function execute(int $account): void
     {
-        foreach (['closeness'=>['Acquaintance','Familiar','Close'], 'importance'=>['Low','Medium','High']] as $dimension=>$names) {
-            foreach ($names as $position=>$name) {
+        foreach (self::RATING_KEYS as $dimension => $ratingKeys) {
+            foreach ($ratingKeys as $position => $ratingKey) {
+                $name = trans('organization.settings.'.$ratingKey, [], 'en');
                 $key = ['account_id'=>$account,'dimension'=>$dimension,'seed_key'=>(string)$position];
                 if (! DB::table('rating_levels')->where($key)->exists()) DB::table('rating_levels')->insert($key+['name'=>$name,'position'=>$position]);
             }

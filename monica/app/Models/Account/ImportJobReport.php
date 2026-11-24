@@ -27,6 +27,26 @@ class ImportJobReport extends Model
      */
     protected $guarded = ['id'];
 
+    public function localizedSkipReason(): ?string
+    {
+        $reason = $this->skip_reason;
+        if ($reason === null) {
+            return null;
+        }
+
+        // Older imports stored these three messages as English text.
+        $key = 'settings.'.match ($reason) {
+            'Choose a company for each ambiguous job.' => 'import_vcard_company_review',
+            'Multiple existing jobs match the imported work. Reconcile the matching jobs before retrying Replace.' => 'import_vcard_job_identity',
+            'Review invalid or ambiguous card metadata.' => 'import_vcard_organization_metadata',
+            default => $reason,
+        };
+
+        $translation = trans($key);
+
+        return $translation === $key ? $reason : $translation;
+    }
+
     /**
      * Get the account record associated with the import job report.
      *

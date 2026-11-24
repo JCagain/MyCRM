@@ -58,15 +58,8 @@
                   {{ $importJobReport->contact_information }}
                 </div>
                 <div class="table-cell reason">
-                  @if (! is_null($importJobReport->skip_reason))
-                  {{--
-                    settings.import_vcard_contact_exist
-                    settings.import_vcard_contact_no_firstname
-                    --}}
-                  @php($reasonKey = 'settings.'.$importJobReport->skip_reason)
-                  {{ trans($reasonKey) === $reasonKey ? $importJobReport->skip_reason : trans($reasonKey) }}
-                  @endif
-                  @if($activeReviewIds->has($importJobReport->organization_review_id))<a href="{{ route('organization.review',$importJobReport->organization_review_id) }}">Review company matches</a>@endif
+                  {{ $importJobReport->localizedSkipReason() }}
+                  @if($activeReviewIds->has($importJobReport->organization_review_id))<a href="{{ route('organization.review',$importJobReport->organization_review_id) }}">{{ trans('organization.review.link') }}</a>@endif
                 </div>
               </li>
               @endforeach

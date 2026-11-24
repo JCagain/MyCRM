@@ -35,7 +35,7 @@ class Work
         } elseif ($choice==='new' || ! $ids) {
             $id=Company::create(['account_id'=>$account,'name'=>$names[0]])->id;
         } elseif (count($ids)===1) $id=$ids[0];
-        else throw ValidationException::withMessages(['company'=>'Choose a company or explicitly create a separate company.']);
+        else throw ValidationException::withMessages(['company'=>trans('organization.work.choose_company')]);
         foreach ($names as $name) $this->alias($account,$id,$name);
         return $id;
     }
@@ -47,7 +47,7 @@ class Work
             DB::table('accounts')->where('id',$contact->account_id)->lockForUpdate()->first();
             validator(['rows'=>$rows],['rows'=>'required|array|min:1|max:100','rows.*.company'=>'nullable|string|max:255','rows.*.title'=>'nullable|string|max:255','rows.*.language'=>'nullable|string|max:64','rows.*.status'=>'nullable|in:current,former,unspecified'])->validate();
             $statuses=array_unique(array_map(fn ($r)=>$r['status'] ?? 'unspecified',$rows));
-            if (count($statuses)!==1 || collect($rows)->contains(fn ($r)=>empty($r['company']) && empty($r['title']))) throw ValidationException::withMessages(['jobs'=>'Align status and supply company or title for every variant.']);
+            if (count($statuses)!==1 || collect($rows)->contains(fn ($r)=>empty($r['company']) && empty($r['title']))) throw ValidationException::withMessages(['jobs'=>trans('organization.work.align_status')]);
             $job=$id ? Occupation::where('account_id',$contact->account_id)->where('contact_id',$contact->id)->findOrFail($id) : new Occupation;
             $job->account_id=$contact->account_id;$job->contact_id=$contact->id;
             $job->company_id=$this->resolve($contact->account_id,array_column($rows,'company'),$choice);
@@ -87,8 +87,8 @@ class Work
         DB::transaction(function () use ($contact,$ids,$choice) {
             $jobs=Occupation::where('account_id',$contact->account_id)->where('contact_id',$contact->id)->whereIn('id',$ids)->orderBy('position')->orderBy('id')->get();
             if ($jobs->count()<2 || $jobs->count()!==count(array_unique($ids))) abort(422);
-            foreach (['status','start_date','end_date','description','salary','salary_unit'] as $field) if ($jobs->pluck($field)->map(fn ($v)=>(string)$v)->unique()->count()>1) throw ValidationException::withMessages(['jobs'=>'Reconcile job status, dates and details before linking.']);
-            if ($jobs->pluck('company_id')->filter()->unique()->count()>1 && $choice===null) throw ValidationException::withMessages(['company'=>'Explicitly choose the company for these jobs.']);
+            foreach (['status','start_date','end_date','description','salary','salary_unit'] as $field) if ($jobs->pluck($field)->map(fn ($v)=>(string)$v)->unique()->count()>1) throw ValidationException::withMessages(['jobs'=>trans('organization.work.reconcile_before_linking')]);
+            if ($jobs->pluck('company_id')->filter()->unique()->count()>1 && $choice===null) throw ValidationException::withMessages(['company'=>trans('organization.work.choose_for_linking')]);
             $target=$jobs->firstWhere('id',$contact->primary_occupation_id) ?? $jobs->first();$rows=[];
             foreach (collect([$target])->merge($jobs->where('id','!=',$target->id)) as $job) foreach ($job->variants as $variant) $rows[]=['company'=>$variant->company,'title'=>$variant->title,'language'=>$variant->language,'status'=>$job->status];
             $target=$this->save($contact,$rows,$target->id,$choice ?? $target->company_id);

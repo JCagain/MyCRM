@@ -7,6 +7,7 @@
 - card2vcf combined-card extraction and variant review: [implementation plan](card2vcf/COMBINED-CARD-REVIEW-PLAN.md).
 - Monica implementation: [implementation plan](docs/MONICA-PLAN.md).
 - [People page layout amendment](docs/PEOPLE-PAGE-LAYOUT.md).
+- [Monica interface language amendment](docs/MONICA-UI-LANGUAGE.md).
 - Implementation review findings and repairs: [repair plan](docs/REPAIR-PLAN.md).
 - Monica fictional verification and prepared deployment: [runbook](docs/MONICA-RUNBOOK.md), [pinned source](monica/UPSTREAM.md).
 - Implemented behavior, direct changes and verification: [implementation record](docs/IMPLEMENTATION.md).

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 use Tests\TestCase;
 use App\Models\Account\Account;
 use App\Models\Account\Company;
+use App\Models\Account\ImportJobReport;
 use App\Models\Contact\Contact;
 use App\Models\Contact\ContactField;
 use App\Models\Contact\ContactFieldType;
@@ -283,6 +284,15 @@ class OrganizationTest extends TestCase
         $row=DB::table('organization_import_reviews')->where('id',$r['review_id'])->first();$this->assertSame($a->id,$row->account_id);$this->assertStringNotContainsString('Fictional Person',$row->payload);
         $user=User::where('account_id',$a->id)->first();$other=factory(User::class)->create();$this->actingAs($other)->withoutMiddleware()->get(route('organization.review',$row->id))->assertNotFound();
         $this->actingAs($user)->get(route('organization.review',$row->id))->assertOk()->assertSee('Resolve company matches');
+        app()->setLocale('zh');
+        $this->get(route('organization.review', $row->id))->assertOk()->assertSee('确认公司匹配');
+        $this->assertSame('请为无法唯一匹配的工作经历选择公司。', (new ImportJobReport([
+            'skip_reason' => 'Choose a company for each ambiguous job.',
+        ]))->localizedSkipReason());
+        $this->assertSame('请为无法唯一匹配的工作经历选择公司。', (new ImportJobReport([
+            'skip_reason' => $r['reason'],
+        ]))->localizedSkipReason());
+        app()->setLocale('en');
         $this->post(route('organization.resolve-review',$row->id),['company_choices'=>[0=>'new',2=>'new']])->assertRedirect();$this->assertSame($before+1,Contact::count());
         $this->assertFalse(DB::table('organization_import_reviews')->where('id',$row->id)->exists());
     }
@@ -414,6 +424,23 @@ class OrganizationTest extends TestCase
         $this->get(route('people.work.edit',$p))->assertOk()->assertSee('Jobs and printed language variants');
         $this->get(route('people.index',['search'=>'no-fictional-match']))->assertOk()->assertSee('No people match these filters.');
         $this->get(route('organization.settings'))->assertOk()->assertSee('Categories and rating levels');
+
+        $user->update(['locale' => 'zh']);
+        $this->get(route('people.index'))->assertOk()
+            ->assertSee('包含曾任职人员')
+            ->assertSee('添加标签')
+            ->assertSee('移除标签')
+            ->assertSee('删除选中的联系人')
+            ->assertDontSee('Include former memberships');
+        $this->get(route('people.work.edit', $p))->assertOk()->assertSee('保存工作经历');
+        $this->get(route('people.show', $p))->assertOk()->assertSee('联系方式和语言版本关联');
+        $this->get(route('organization.settings'))->assertOk()->assertSee('标签分类和评级');
+        $this->get(route('settings.upload'))->assertOk()->assertSee('Monica 支持 vCard 3.0 和 4.0。')
+            ->assertSee('添加新联系人并跳过已有联系人');
+        $this->post(route('organization.delete.confirm'), ['contact_ids' => [$p->id]])
+            ->assertOk()->assertSee('删除 1 位联系人？')->assertSee($p->name);
+        $this->delete(route('organization.delete'), ['contact_ids' => [$p->id], 'confirmed' => '1'])
+            ->assertRedirect()->assertSessionHas('success', '已删除 1 位联系人。');
     }
     public function test_filtered_pagination_preserves_query_and_last_contacted_in_html_and_json()
     {

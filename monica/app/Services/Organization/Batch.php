@@ -13,9 +13,17 @@ class Batch
         'contact_ids.*' => 'required|integer|distinct',
     ];
 
+    private function selectionAttributes(): array
+    {
+        return [
+            'contact_ids' => trans('organization.people.contact_selection'),
+            'contact_ids.*' => trans('organization.people.contact_selection'),
+        ];
+    }
+
     public function execute(int $account,array $input): void
     {
-        validator($input, self::SELECTION_RULES + ['add_tags'=>'sometimes|array','remove_tags'=>'sometimes|array','add_tags.*'=>'integer|distinct','remove_tags.*'=>'integer|distinct','closeness'=>'sometimes|nullable|integer','importance'=>'sometimes|nullable|integer'])->validate();
+        validator($input, self::SELECTION_RULES + ['add_tags'=>'sometimes|array','remove_tags'=>'sometimes|array','add_tags.*'=>'integer|distinct','remove_tags.*'=>'integer|distinct','closeness'=>'sometimes|nullable|integer','importance'=>'sometimes|nullable|integer'], [], $this->selectionAttributes())->validate();
         DB::transaction(function () use ($account,$input) {
             $contacts=Contact::where('account_id',$account)->whereIn('id',$input['contact_ids'])->lockForUpdate()->get();
             if ($contacts->count()!==count($input['contact_ids'])) abort(404);
@@ -32,7 +40,7 @@ class Batch
     }
     public function contactsToDelete(int $account, array $input, bool $lock = false): Collection
     {
-        $ids = validator($input, self::SELECTION_RULES)->validate()['contact_ids'];
+        $ids = validator($input, self::SELECTION_RULES, [], $this->selectionAttributes())->validate()['contact_ids'];
         $query = Contact::where('account_id', $account)->real()->whereIn('id', $ids)->orderBy('id');
         $contacts = ($lock ? $query->lockForUpdate() : $query)->get();
         abort_unless($contacts->count() === count($ids), 404);

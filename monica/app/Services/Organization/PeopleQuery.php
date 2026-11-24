@@ -31,14 +31,14 @@ class PeopleQuery
         }
         $ids=$filters['tag_ids'] ?? DB::table('tags')->where('account_id',$account)->whereIn('name',$filters['tags'] ?? [])->pluck('id')->all();
         $tags=DB::table('tags')->where('account_id',$account)->whereIn('id',$ids)->get();
-        if ($tags->count()!==count(array_unique($ids))) throw ValidationException::withMessages(['tags'=>'Choose tags from this account.']);
+        if ($tags->count()!==count(array_unique($ids))) throw ValidationException::withMessages(['tags'=>trans('organization.people.invalid_tags')]);
         foreach ($tags->groupBy(fn ($t)=>$t->category_id ?? 'uncategorized') as $group) {
             $query->whereHas('tags',fn ($q)=>$q->whereIn('tags.id',$group->pluck('id'))->where('tags.account_id',$account));
         }
         foreach (['closeness','importance'] as $dimension) if (isset($filters[$dimension]) && $filters[$dimension]!=='') {
             if ($filters[$dimension]==='unrated') $query->whereNull($dimension.'_id');
             else {
-                if (! DB::table('rating_levels')->where('account_id',$account)->where('dimension',$dimension)->where('id',$filters[$dimension])->exists()) throw ValidationException::withMessages([$dimension=>'Choose a level from this account and dimension.']);
+                if (! DB::table('rating_levels')->where('account_id',$account)->where('dimension',$dimension)->where('id',$filters[$dimension])->exists()) throw ValidationException::withMessages([$dimension=>trans('organization.people.invalid_level')]);
                 $query->where($dimension.'_id',$filters[$dimension]);
             }
         }

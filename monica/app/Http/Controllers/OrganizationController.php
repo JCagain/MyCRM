@@ -46,12 +46,12 @@ class OrganizationController extends Controller
                 }
             }
         });
-        return back()->with('success','Work information updated.');
+        return back()->with('success', trans('organization.work.updated'));
     }
     public function batch(Request $request)
     {
         $input=$request->all();foreach (['closeness','importance'] as $d) if (($input[$d] ?? '')==='keep') unset($input[$d]);
-        app(Batch::class)->execute(auth()->user()->account_id,$input);return back()->with('success','Selected people updated.');
+        app(Batch::class)->execute(auth()->user()->account_id,$input);return back()->with('success', trans('organization.people.batch_updated'));
     }
     public function confirmDelete(Request $request, Batch $batch)
     {
@@ -100,7 +100,7 @@ class OrganizationController extends Controller
                 DB::table($table)->where('account_id',$account)->where('id',$id)->update($values);
             } else DB::table($table)->insert($values+['account_id'=>$account]);
         });
-        return back()->with('success','Organization settings updated.');
+        return back()->with('success', trans('organization.settings.updated'));
     }
     public function methods(Request $request,Contact $contact)
     {
@@ -174,7 +174,7 @@ class OrganizationController extends Controller
             return $result;
         });
         if (isset($result['review_id'])) return redirect()->route('organization.review',$result['review_id']);
-        if (isset($result['error']) && $result['error']!=='ERROR_CONTACT_EXIST') return back()->withErrors(['import'=>$result['reason']]);
-        return redirect()->route('people.index')->with('success','Import review completed.');
+        if (isset($result['error']) && $result['error']!=='ERROR_CONTACT_EXIST') return back()->withErrors(['import'=>trans('settings.'.$result['reason'])]);
+        return redirect()->route('people.index')->with('success', trans('organization.review.completed'));
     }
 }

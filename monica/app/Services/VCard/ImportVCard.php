@@ -125,7 +125,7 @@ class ImportVCard extends BaseService
             'addressBookName' => 'nullable|string|exists:addressbooks,name',
             'etag' => 'nullable|string',
             'company_choices' => 'sometimes|array',
-            'company_choices.*' => ['nullable', function ($a,$v,$fail) { if ($v!=='new' && ! ctype_digit((string)$v)) $fail('Choose a company or new.'); }],
+            'company_choices.*' => ['nullable', function ($a,$v,$fail) { if ($v!=='new' && ! ctype_digit((string)$v)) $fail(trans('organization.work.choose_company')); }],
         ];
     }
 
@@ -271,7 +271,7 @@ class ImportVCard extends BaseService
                     $id=(string)\Illuminate\Support\Str::uuid();
                     \Illuminate\Support\Facades\DB::table('organization_import_reviews')->where('account_id',$this->accountId)->where('expires_at','<',now())->delete();
                     \Illuminate\Support\Facades\DB::table('organization_import_reviews')->insert(['id'=>$id,'account_id'=>$this->accountId,'user_id'=>$this->userId,'payload'=>\Illuminate\Support\Facades\Crypt::encryptString(json_encode(['entry'=>$vcard,'behaviour'=>$data['behaviour'],'contact_id'=>$data['contact_id'] ?? null])),'expires_at'=>now()->addDay()]);
-                    return ['error'=>'ERROR_COMPANY_REVIEW','reason'=>'Choose a company for each ambiguous job.','name'=>$this->name($entry),'companies'=>$review,'review_id'=>$id];
+                    return ['error'=>'ERROR_COMPANY_REVIEW','reason'=>'import_vcard_company_review','name'=>$this->name($entry),'companies'=>$review,'review_id'=>$id];
                 }
                 $saved=$this->importEntry($contact,$entry,$vcard,Arr::get($data,'etag'),$normalized,$choices);
                 return $saved;
@@ -282,7 +282,7 @@ class ImportVCard extends BaseService
             if ($e->errors()['job_identity'] ?? false) {
                 return ['error'=>'ERROR_JOB_IDENTITY','reason'=>$e->errors()['job_identity'][0],'name'=>$this->name($entry)];
             }
-            return ['error'=>'ERROR_ORGANIZATION_METADATA','reason'=>'Review invalid or ambiguous card metadata.','name'=>$this->name($entry)];
+            return ['error'=>'ERROR_ORGANIZATION_METADATA','reason'=>'import_vcard_organization_metadata','name'=>$this->name($entry)];
         }
 
         if (isset($timestamps)) {

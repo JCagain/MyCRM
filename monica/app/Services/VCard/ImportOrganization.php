@@ -69,7 +69,7 @@ class ImportOrganization
             $claimed = [];
             foreach ($candidates as $index => $ids) {
                 if (count($ids) !== 1 || isset($claimed[$ids[0]])) {
-                    throw ValidationException::withMessages(['job_identity' => 'Multiple existing jobs match the imported work. Reconcile the matching jobs before retrying Replace.']);
+                    throw ValidationException::withMessages(['job_identity' => 'import_vcard_job_identity']);
                 }
                 $id = $ids[0];
                 $claimed[$id] = true;
