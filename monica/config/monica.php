@@ -198,6 +198,8 @@ return [
     */
     'max_upload_size' => env('DEFAULT_MAX_UPLOAD_SIZE', 10240),
 
+    'vcard_import_max_size_mib' => 256,
+
     /*
     |--------------------------------------------------------------------------
     | Maximum allowed storage size per account, in megabytes.

@@ -1,6 +1,7 @@
 # Local Monica + card2vcf
 
 - Start card2vcf and its local model: [quickstart](card2vcf/QUICKSTART.md).
+- [Start and open Monica](docs/MONICA-RUNBOOK.md#start-and-open-monica).
 - Monica deployment configuration: [compose.yaml](compose.yaml).
 - Feature requirements: [card2vcf specification](card2vcf/SPEC.md) and [Monica modification specification](docs/MONICA-SPEC.md).
 - card2vcf integration delivery and wire contract: [implementation plan](card2vcf/INTEGRATION-PLAN.md).

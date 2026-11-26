@@ -61,7 +61,9 @@ For the Simplified Chinese interface, see [card2vcf interface language](../docs/
 
 Select your images, extract, review, then export. The default extraction timeout is five minutes per card; Cancel remains available.
 
-See the [export format and job selection rules](SPEC.md#amendment-to-primary-job-selection-and-export-defaults) for modified and stock Monica.
+To edit contacts from a VCF file, see [Open VCF](../docs/IMPLEMENTATION.md#card2vcf-open-vcf).
+
+See the [export dialog guide](../docs/IMPLEMENTATION.md#card2vcf-export-dialog) and the [export format and job selection rules](SPEC.md#amendment-to-primary-job-selection-and-export-defaults).
 
 If you previously configured an API key but now run llama without one, clear it in the app's PowerShell window before starting:
 

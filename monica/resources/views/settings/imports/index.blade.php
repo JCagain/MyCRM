@@ -57,6 +57,9 @@
               <span class="date">{{ \App\Helpers\DateHelper::getShortDateWithTime($importJob->created_at) }}</span>
             </div>
             <div class="table-cell">
+              @if ($importJob->original_filename !== null)
+                <div style="overflow-wrap: anywhere">{{ $importJob->original_filename }}</div>
+              @endif
               @if (is_null($importJob->ended_at))
                 {{ trans('settings.import_in_progress') }}
               @endif

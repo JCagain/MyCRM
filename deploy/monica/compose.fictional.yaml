@@ -35,6 +35,8 @@ services:
       - fictional-storage:/var/www/html/storage
       - ./php-dev.ini:/usr/local/etc/php/conf.d/zz-fictional.ini:ro
       - ../../monica/app:/var/www/html/app:ro
+      - ../../monica/resources/lang:/var/www/html/resources/lang:ro
+      - ../../monica/config:/var/www/html/config:ro
       - ../../monica/database:/var/www/html/database:ro
       - ../../monica/routes:/var/www/html/routes:ro
       - ../../monica/tests:/var/www/html/tests:ro

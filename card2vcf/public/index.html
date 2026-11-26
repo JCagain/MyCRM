@@ -40,7 +40,12 @@ npm.cmd start</code></pre>
 <p>Optional: if you later enable <code>--api-key</code> on the model server, set the same value in <code>$env:CARD2VCF_API_KEY</code> before starting card2vcf. Otherwise leave both unset.</p>
 </dialog>
 <div class="card-toolbar">
-  <span class="toolbar-divided"><label class="button">Add cards<input id="files" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden></label><span class="toolbar-divider" aria-hidden="true"></span></span>
+  <span class="toolbar-divided">
+    <label class="button">Add cards<input id="files" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden></label>
+    <button id="openVcf" type="button">Open VCF</button>
+    <span class="toolbar-divider" aria-hidden="true"></span>
+  </span>
+  <input id="vcfFile" type="file" accept=".vcf,text/vcard,text/x-vcard" hidden>
   <button id="extract">Extract selected</button>
   <button id="retry">Retry failed</button>
   <button id="retryEdited">Retry edited</button>
@@ -52,7 +57,7 @@ npm.cmd start</code></pre>
     <p class="notice">Closing or refreshing this tab discards your session. Export before leaving.</p>
   </div>
 </div>
-<p id="status" role="status" aria-live="polite">Add card images or self-introduction screenshots to begin.</p>
+<p id="status" role="status" aria-live="polite">Add card images or open a VCF to begin.</p>
 <main>
   <aside aria-labelledby="cardsTitle">
     <h2 id="cardsTitle">List of cards</h2>
@@ -67,5 +72,25 @@ npm.cmd start</code></pre>
   <section id="editor"><p>Your editable contact appears here.</p></section>
 </main>
 <dialog id="batchDialog"><form id="batchForm"><h2>First met · selected people</h2><label>Date<input name="date" type="date"></label><label>Occasion<input name="occasion"></label><label>Location<input name="location"></label><label>Notes<textarea name="notes"></textarea></label><label><input name="overwrite" type="checkbox">Replace existing values in supplied fields</label><p>Blank inputs leave existing values unchanged.</p><button>Apply</button><button type="button" data-close>Cancel</button></form></dialog>
-<dialog id="exportDialog"><h2>Export selected reviewed people</h2><p id="exportError" class="warning" role="alert" hidden></p><p id="exportNotice" role="status" aria-live="polite"></p><div class="actions"><button id="selectReviewed">Select all reviewed people</button><button id="goReview">Go to selected person needing review</button></div><label>Download filename<input id="exportFilename" value="contacts" maxlength="100" aria-describedby="filenameHelp"></label><p id="filenameHelp" class="hint">We add .vcf or .zip automatically. Files inside a ZIP keep each person's name.</p><label>Format<select id="mode"><option value="monica">Monica compatible</option><option value="structured" selected>Structured vCard (multiple jobs)</option></select></label><p>First met details and fields without dedicated import support are preserved in Notes. Generated simplified names go into searchable nicknames.</p><p class="hint">Original source images are embedded as PHOTO fields in both download formats, at full size. This makes files larger. Monica 4.1.2 uses the first photo as the avatar and may ignore additional photos. The text preview below omits image data for readability.</p><p id="modeHelp" class="hint"></p><pre id="preview"></pre><button id="combined">Combined VCF</button><button id="individual">Individual VCFs (ZIP)</button><button data-close>Close</button></dialog>
+<dialog id="exportDialog">
+ <h2>Export selected reviewed people</h2>
+ <p id="exportError" class="warning" role="alert" hidden></p>
+ <p id="exportNotice" role="status" aria-live="polite"></p>
+ <div class="actions"><button id="selectReviewed">Select all reviewed people</button><button id="goReview">Go to selected person needing review</button></div>
+ <label>Download filename<input id="exportFilename" value="contacts" maxlength="100" aria-describedby="filenameHelp"></label>
+ <p id="filenameHelp" class="hint">We add .vcf or .zip automatically. Files inside a ZIP keep each person's name.</p>
+ <div class="format-label">
+  <label for="mode">Format</label>
+  <button type="button" id="toggleFormatHelp" title="Export format help" aria-expanded="false" aria-controls="modeHelp"><span aria-hidden="true">?</span></button>
+ </div>
+ <select id="mode"><option value="monica">Monica compatible</option><option value="structured" selected>Structured vCard (recommended)</option></select>
+ <div id="modeHelp" class="hint" hidden>
+  <p><strong>Structured vCard (recommended)</strong> <span>For modified Monica. Keeps all jobs, their statuses and linked versions, and WhatsApp phone links.</span></p>
+  <p><strong>Monica compatible</strong> <span>For stock Monica. Imports the primary job’s preferred company and title. Other jobs and versions go in Notes.</span></p>
+  <p>Both formats preserve First met for Card2VCF and modified Monica, include readable details in Notes, save simplified names as searchable nicknames, and include original photos. Modified Monica saves distinct embedded images in Photos and uses the first usable image if the contact has no photo avatar.</p>
+ </div>
+ <h3 id="previewHeading">vCard preview (photos omitted)</h3>
+ <pre id="preview" aria-labelledby="previewHeading"></pre>
+ <button id="combined">Combined VCF</button><button id="individual">Individual VCFs (ZIP)</button><button data-close>Close</button>
+</dialog>
 </body></html>

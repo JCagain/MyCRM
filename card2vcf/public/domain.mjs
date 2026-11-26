@@ -2,7 +2,7 @@ import {initialize,compatible,clean,meaningful} from './contact-metadata.mjs';
 import {keys,fieldIdentity,normalizedText} from './fields.mjs';
 export {keys} from './fields.mjs';
 const uuid=()=>crypto.randomUUID();
-export function person(card){return {id:uuid(),uid:uuid(),cards:[card],...Object.fromEntries(keys.map(key=>[key,[]])),notes:'',display:'',nicknames:'',firstMet:{date:'',occasion:'',location:'',notes:''},reviewed:false,suggestions:[],suppressed:[],revision:0,reads:{},manualChanges:[],separatePairs:[],noteSources:{}};}
+export function person(card){return {id:uuid(),uid:uuid(),cards:card?[card]:[],...Object.fromEntries(keys.map(key=>[key,[]])),notes:'',display:'',nicknames:'',firstMet:{date:'',occasion:'',location:'',notes:''},reviewed:false,suggestions:[],suppressed:[],revision:0,reads:{},manualChanges:[],separatePairs:[],noteSources:{}};}
 export class History{
  constructor(){this.state=[];this.past=[];this.future=[];}
  change(fn){this.past.push(structuredClone(this.state));this.future=[];fn(this.state);}

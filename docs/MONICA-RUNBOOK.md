@@ -3,6 +3,18 @@
 Requirements and acceptance gates: [specification](MONICA-SPEC.md) and [plan](MONICA-PLAN.md).
 Delivery status and evidence are in the [implementation record](IMPLEMENTATION.md).
 
+## Start and open Monica
+
+1. Open Docker Desktop and wait for the Docker engine to start.
+2. Open PowerShell and run:
+
+   ```powershell
+   Set-Location 'D:\Dev\monica'
+   docker compose -f compose.yaml -f deploy/monica/compose.organization.yaml up -d --no-build
+   ```
+
+3. Open [http://localhost:8080](http://localhost:8080) in your browser and sign in. If the page is still starting, wait a few seconds and refresh.
+
 ## Reproduce fictional verification
 
 Install the converter's locked dependencies with `npm ci` in `card2vcf/` and install its Playwright browser if needed. Docker Desktop must be running. From the repository root in PowerShell:
@@ -11,7 +23,7 @@ Install the converter's locked dependencies with `npm ci` in `card2vcf/` and ins
 powershell -NoProfile -ExecutionPolicy Bypass -File deploy/monica/fictional.ps1 -Build
 ```
 
-The [script](../deploy/monica/fictional.ps1) generates the shared fictional fixture, runs the converter browser handoff, builds the development image, starts the separate fictional database, migrates/backfills it and runs the [focused PHP suite](../monica/phpunit.organization.xml), committed-photo check and [Monica browser flow](../deploy/monica/browser.mjs). The execution-policy flag applies only to that process; it does not change the machine/user policy. Subsequent runs can omit `-Build` while editing mounted PHP/Blade sources. Dependency, configuration or build changes require rebuilding. The project uses explicit [fictional environment](../deploy/monica/fictional.env) and [Compose files](../deploy/monica/compose.fictional.yaml); it does not load root credentials or production volumes.
+The [script](../deploy/monica/fictional.ps1) generates the shared fictional fixture, runs the converter browser handoff, builds the development image, starts the separate fictional database, migrates/backfills it and runs the [focused PHP suite](../monica/phpunit.organization.xml), committed-photo check and [Monica browser flow](../deploy/monica/browser.mjs). The execution-policy flag applies only to that process; it does not change the machine/user policy. Subsequent runs can omit `-Build` while editing the mounted application code, views, translations and Laravel configuration. Dependency or image build changes require rebuilding. The project uses explicit [fictional environment](../deploy/monica/fictional.env) and [Compose files](../deploy/monica/compose.fictional.yaml); it does not load root credentials or production volumes.
 
 PHP 8.2, Sabre/vobject 4.5.4 and MariaDB 11 follow the pinned source/base image and existing database engine family. The base image retains upstream compiled frontend assets; the new controls use Blade and existing CSS. No frontend asset rebuild is required for these changes.
 
@@ -37,7 +49,7 @@ This [check](../deploy/monica/image-smoke.ps1) temporarily stops the fictional a
 
 ## Later upgrade procedure
 
-Use these steps for an authorized live upgrade. For routine container recreation after an upgrade, keep the same image override by running `docker compose -f compose.yaml -f deploy/monica/compose.organization.yaml up -d --no-build` from the repository root.
+Use these steps for an authorized live upgrade. For routine container recreation after an upgrade, follow [Start and open Monica](#start-and-open-monica).
 
 1. Check source/version and schema metadata against the pinned baseline. Confirm migration history, actual MariaDB version and available disk space. Resolve differences before migration. Keep the current application image locally available.
 2. Put the current app in maintenance mode with `php artisan down`. Stop scheduled jobs, queue workers and any external API/CardDAV writers. Ensure no process can write during backup, migration or recovery.

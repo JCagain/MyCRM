@@ -102,8 +102,43 @@ try {
 
  await page.goto(profile+'/work/edit');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'work editor fits narrow layout');
  await page.goto(url+'/settings/organization');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'settings fit narrow layout');
+
+ await page.goto(url+'/settings/import/upload');
+ assert.match(await page.locator('#fileHelp').innerText(), /256 MiB/);
+ const photo = await page.evaluate(() => {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 1024;
+  const context = canvas.getContext('2d');
+  const image = context.createImageData(canvas.width, canvas.height);
+  const pixels = new Uint32Array(image.data.buffer);
+  let sample = 123456789;
+  for (let index = 0; index < pixels.length; index++) {
+   sample ^= sample << 13;
+   sample ^= sample >>> 17;
+   sample ^= sample << 5;
+   pixels[index] = sample | 0xff000000;
+  }
+  context.putImageData(image, 0, 0);
+  return canvas.toDataURL('image/png');
+ });
+ const photoLines = ('PHOTO:' + photo).match(/.{1,75}/g).join('\r\n ');
+ const batchId = Date.now();
+ const cards = ['Alpha', 'Beta', 'Gamma'].map(name => [
+  'BEGIN:VCARD', 'VERSION:4.0', `FN:Fictional ${name} ${batchId}`, `N:${name} ${batchId};Fictional;;;`,
+  photoLines, 'END:VCARD', '',
+ ].join('\r\n')).join('');
+ const buffer = Buffer.from(cards);
+ assert.ok(buffer.length > 10 * 1024 * 1024, 'fixture exceeds the old vCard upload cap');
+ const filename = `Fictional photos & cards ${batchId}.vcf`;
+ await page.locator('#vcard').setInputFiles({name: filename, mimeType: 'text/vcard', buffer});
+ await Promise.all([page.waitForURL('**/settings/import'), page.locator('#upload').click()]);
+ const importRow = page.locator('.table-row').filter({hasText: filename});
+ await importRow.getByText('3 imported', {exact: false}).waitFor();
+ await importRow.getByRole('link', {name: 'View report'}).click();
+ await page.getByText(filename, {exact: true}).waitFor();
+
  assert.deepEqual(errors,[]);
- process.stdout.write('Monica fictional browser flow passed: work links, methods, settings, batch filters, selection reset and desktop/narrow layouts.\n');
+ process.stdout.write('Monica fictional browser flow passed, including a vCard upload over 10 MiB and its filename in import history and the report.\n');
 } catch(error) {
  process.stderr.write(`Browser failed at ${page.url()}\n${(await page.locator('body').innerText()).slice(0,1800)}\n`);throw error;
 } finally { await browser.close(); }

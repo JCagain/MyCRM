@@ -19,8 +19,10 @@ use App\Services\Organization\Work;
 use App\Services\VCard\ImportVCard;
 use App\Services\VCard\OrganizationCard;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Sabre\VObject\Reader;
 
@@ -82,6 +84,43 @@ class OrganizationTest extends TestCase
         $this->assertSame(3, Company::where('account_id', $account->id)->count());
     }
 
+    public function test_vcard_upload_uses_its_own_size_limit_and_keeps_the_original_filename(): void
+    {
+        $disk = Storage::fake(config('filesystems.default'));
+        $account = $this->account();
+        $user = factory(User::class)->create(['account_id' => $account->id]);
+        app(\App\Services\User\AcceptPolicy::class)->execute([
+            'account_id' => $account->id,
+            'user_id' => $user->id,
+            'ip_address' => null,
+        ]);
+        $this->actingAs($user);
+
+        $filename = '名片 & photos.vcf';
+        $vcard = "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Fictional Upload\r\nN:Upload;Fictional;;;\r\nEND:VCARD\r\n";
+        $limit = config('monica.vcard_import_max_size_mib') * 1024;
+
+        $this->post(route('settings.storeImport'), [
+            'vcard' => UploadedFile::fake()->createWithContent($filename, $vcard)->size($limit + 1),
+            'behaviour' => ImportVCard::BEHAVIOUR_ADD,
+        ])->assertSessionHasErrors('vcard');
+        $this->assertSame(0, $account->importjobs()->count());
+        $this->flushSession();
+
+        $this->post(route('settings.storeImport'), [
+            'vcard' => UploadedFile::fake()->createWithContent($filename, $vcard)->size($limit),
+            'behaviour' => ImportVCard::BEHAVIOUR_ADD,
+        ])->assertRedirect(route('settings.import'))->assertSessionHasNoErrors();
+
+        $job = $account->importjobs()->firstOrFail();
+        $this->assertSame($filename, $job->original_filename);
+        $this->assertEquals(1, $job->contacts_imported);
+        $this->assertStringStartsWith('imports/', $job->filename);
+        $disk->assertMissing($job->filename);
+        $this->get(route('settings.import'))->assertOk()->assertSee($filename)->assertDontSee($job->filename);
+        $this->get(route('settings.report', $job))->assertOk()->assertSee($filename)->assertDontSee($job->filename);
+    }
+
     public function test_review_updates_the_original_report_and_worker_keeps_the_totals(): void
     {
         Queue::fake();
@@ -116,7 +155,8 @@ class OrganizationTest extends TestCase
         $expired = $job->importJobReports()->where('skipped', true)->firstOrFail();
         DB::table('organization_import_reviews')->where('id', $expired->organization_review_id)
             ->update(['expires_at' => now()->subMinute()]);
-        $this->get('/settings/import/report/'.$job->id)->assertOk()->assertDontSee('Review company matches');
+        $this->get('/settings/import/report/'.$job->id)->assertOk()
+            ->assertDontSee('Review company matches')->assertDontSee('fictional.vcf');
         $this->post(route('organization.resolve-review', $expired->organization_review_id), ['skip' => true])->assertNotFound();
         $process->invoke($job, $entry('Fictional skipped', "ORG:Ambiguous\r\nTITLE:Advisor\r\n"));
         $skipped = $job->importJobReports()->latest('id')->firstOrFail();
@@ -164,10 +204,35 @@ class OrganizationTest extends TestCase
         $this->assertSame(['unspecified','former','current','unspecified','former'],$jobs->pluck('status')->all());
         $this->assertSame('Example',$p->company);$this->assertSame('Advisor',$p->job);$this->assertNull($jobs[4]->company_id);
         $this->assertSame('Fictional nickname',$p->nickname);$this->assertStringContainsString('https://example.invalid/fictional',$p->notes()->first()->body);$this->assertStringContainsString('First met occasion: Fictional conference',$p->notes()->first()->body);
+        $this->assertSame('2020-01-02', $p->firstMetDate->date->toDateString());
+        $this->assertSame('Example hall', $p->first_met_where);
+        $this->assertSame("Fictional conference\nFictional introduction", $p->first_met_additional_info);
         $addresses=$p->addresses()->orderBy('id')->get();$this->assertCount(3,$addresses);$this->assertSame($addresses[0]->alternative_group,$addresses[1]->alternative_group);$this->assertNull($addresses[2]->alternative_group);
         $phone=$p->contactFields()->phone()->first();$bound=$p->contactFields()->where('phone_id',$phone->id)->get();$this->assertCount(1,$bound);
         $this->assertSame($phone->data,$bound[0]->data);$this->assertSame(5,$p->contactFields()->whereHas('contactFieldType',fn($q)=>$q->whereIn('name',['WeChat','LinkedIn','Whatsapp']))->count());
         $again=$this->import($a,$this->source(),ImportVCard::BEHAVIOUR_REPLACE);$this->assertArrayNotHasKey('error',$again);$this->assertSame($p->id,$again['contact_id']);$this->assertSame(5,$p->occupations()->count());$this->assertSame(2,$p->notes()->count());
+        $this->assertSame($p->first_met_special_date_id, $p->fresh()->first_met_special_date_id);
+    }
+
+    public function test_first_met_import_recovers_legacy_exports_and_leaves_absent_values_intact(): void
+    {
+        Queue::fake();
+        $account = $this->account();
+        $legacy = preg_replace('/^X-C2V-FIRST-MET-.*\r\n(?:[ \t].*\r\n)*/m', '', $this->source());
+        $result = $this->import($account, $legacy);
+        $this->assertArrayNotHasKey('error', $result);
+        $contact = Contact::findOrFail($result['contact_id']);
+        $this->assertSame('2020-01-02', $contact->firstMetDate->date->toDateString());
+        $this->assertSame('Example hall', $contact->first_met_where);
+        $this->assertSame("Fictional conference\nFictional introduction", $contact->first_met_additional_info);
+
+        $source = "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:$contact->uuid\r\nFN:Fictional Person\r\n"
+            ."X-C2V-FIRST-MET-DATE;VALUE=text:2020-02-31\r\nX-C2V-FIRST-MET-LOCATION;VALUE=text:New location\r\nEND:VCARD\r\n";
+        $this->assertArrayNotHasKey('error', $this->import($account, $source, ImportVCard::BEHAVIOUR_REPLACE));
+        $contact->refresh();
+        $this->assertSame('2020-01-02', $contact->firstMetDate->date->toDateString());
+        $this->assertSame('New location', $contact->first_met_where);
+        $this->assertSame("Fictional conference\nFictional introduction", $contact->first_met_additional_info);
     }
     public function test_add_skip_precedes_metadata_validation_and_mutations()
     {
@@ -334,6 +399,45 @@ class OrganizationTest extends TestCase
         try { app(Batch::class)->execute($a->id,['contact_ids'=>[$p->id,$foreign->id],'remove_tags'=>$tags]);$this->fail('Expected account rejection'); } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) { $this->assertSame(404,$e->getStatusCode()); }
         $this->assertSame(3,$p->tags()->count());
     }
+    public function test_bulk_delete_confirms_and_checks_the_whole_selection(): void
+    {
+        $account = $this->account();
+        $user = factory(User::class)->create(['account_id' => $account->id]);
+        app(\App\Services\User\AcceptPolicy::class)->execute([
+            'account_id' => $account->id,
+            'user_id' => $user->id,
+            'ip_address' => null,
+        ]);
+        $first = $this->contact($account);
+        $second = $this->contact($account);
+        $unselected = $this->contact($account);
+        $foreign = $this->contact($this->account());
+        $archived = $this->contact($account);
+        $archived->forceFill(['is_active' => false])->save();
+        $selection = ['contact_ids' => [$first->id, $second->id]];
+
+        $this->actingAs($user)
+            ->post(route('organization.delete.confirm'), $selection)
+            ->assertOk()->assertSee('Delete 2 contacts?')->assertSee($first->name)->assertSee($second->name);
+        $this->assertNotNull($first->fresh());
+        $this->delete(route('organization.delete'), $selection)->assertSessionHasErrors('confirmed');
+        $this->delete(route('organization.delete'), ['contact_ids' => [$first->id, $foreign->id], 'confirmed' => 1])
+            ->assertNotFound();
+        $this->delete(route('organization.delete'), ['contact_ids' => [$first->id, $archived->id], 'confirmed' => 1])
+            ->assertSessionHasErrors();
+        $this->assertNotNull($first->fresh());
+        $this->assertNotNull($second->fresh());
+
+        $this->delete(route('organization.delete', ['search' => 'fictional', 'page' => 2]), $selection + ['confirmed' => 1])
+            ->assertRedirect(route('people.index', ['search' => 'fictional']))
+            ->assertSessionHas('success', '2 contacts deleted.');
+        $this->assertSoftDeleted($first);
+        $this->assertSoftDeleted($second);
+        $this->assertNotNull($unselected->fresh());
+        $this->assertNotNull($foreign->fresh());
+        $this->assertNotNull($archived->fresh());
+    }
+
     public function test_last_contacted_is_derived_from_events_and_changes_after_deletion()
     {
         $a=$this->account();$p=$this->contact($a);$call=factory(\App\Models\Contact\Call::class)->create(['account_id'=>$a->id,'contact_id'=>$p->id,'called_at'=>'2020-01-01']);
@@ -374,45 +478,6 @@ class OrganizationTest extends TestCase
     }
     public function test_existing_pages_render_new_controls_and_filtered_empty_state()
     {
-    public function test_bulk_delete_confirms_and_checks_the_whole_selection(): void
-    {
-        $account = $this->account();
-        $user = factory(User::class)->create(['account_id' => $account->id]);
-        app(\App\Services\User\AcceptPolicy::class)->execute([
-            'account_id' => $account->id,
-            'user_id' => $user->id,
-            'ip_address' => null,
-        ]);
-        $first = $this->contact($account);
-        $second = $this->contact($account);
-        $unselected = $this->contact($account);
-        $foreign = $this->contact($this->account());
-        $archived = $this->contact($account);
-        $archived->forceFill(['is_active' => false])->save();
-        $selection = ['contact_ids' => [$first->id, $second->id]];
-
-        $this->actingAs($user)
-            ->post(route('organization.delete.confirm'), $selection)
-            ->assertOk()->assertSee('Delete 2 contacts?')->assertSee($first->name)->assertSee($second->name);
-        $this->assertNotNull($first->fresh());
-        $this->delete(route('organization.delete'), $selection)->assertSessionHasErrors('confirmed');
-        $this->delete(route('organization.delete'), ['contact_ids' => [$first->id, $foreign->id], 'confirmed' => 1])
-            ->assertNotFound();
-        $this->delete(route('organization.delete'), ['contact_ids' => [$first->id, $archived->id], 'confirmed' => 1])
-            ->assertSessionHasErrors();
-        $this->assertNotNull($first->fresh());
-        $this->assertNotNull($second->fresh());
-
-        $this->delete(route('organization.delete', ['search' => 'fictional', 'page' => 2]), $selection + ['confirmed' => 1])
-            ->assertRedirect(route('people.index', ['search' => 'fictional']))
-            ->assertSessionHas('success', '2 contacts deleted.');
-        $this->assertSoftDeleted($first);
-        $this->assertSoftDeleted($second);
-        $this->assertNotNull($unselected->fresh());
-        $this->assertNotNull($foreign->fresh());
-        $this->assertNotNull($archived->fresh());
-    }
-
         Queue::fake();$a=$this->account();$user=factory(User::class)->create(['account_id'=>$a->id]);$p=$this->contact($a);$this->actingAs($user)->withoutMiddleware([
             \App\Http\Middleware\EnsureEmailIsVerified::class,
             \App\Http\Middleware\CheckCompliance::class,

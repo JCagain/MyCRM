@@ -38,6 +38,9 @@
             <ul class="report-summary">
               <li>{{ trans('settings.import_report_date') }}: <span>{{ \App\Helpers\DateHelper::getShortDate($importJob->created_at) }}</span></li>
               <li>{{ trans('settings.import_report_type') }}: <span>{{ $importJob->type }}</span></li>
+              @if ($importJob->original_filename !== null)
+                <li>{{ trans('settings.import_report_filename') }}: <span style="overflow-wrap: anywhere">{{ $importJob->original_filename }}</span></li>
+              @endif
               <li>{{ trans('settings.import_report_number_contacts') }}: <span>{{ $importJob->contacts_found }}</span></li>
               <li>{{ trans('settings.import_report_number_contacts_imported') }}: <span>{{ $importJob->contacts_imported }}</span></li>
               <li>{{ trans('settings.import_report_number_contacts_skipped') }}: <span>{{ $importJob->contacts_skipped }}</span></li>

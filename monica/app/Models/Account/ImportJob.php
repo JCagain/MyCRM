@@ -27,6 +27,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property bool $failed
  * @property string $failed_reason
  * @property string $filename
+ * @property string|null $original_filename
  * @property int $contacts_found
  * @property int $contacts_skipped
  * @property int $contacts_imported

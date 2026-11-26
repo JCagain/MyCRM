@@ -2,11 +2,12 @@ import {initialize,groups,statuses,link,unlink,setStatus,primary,preferJobVersio
 import {socialService,fieldIdentity} from './fields.mjs';
 import {History,person,keys,combine,detach,reconcileRead,resolveProposal,manualChange,editNotes,suggestedPair,separatePair,addSimplified,displayName,batch,signature} from './domain.mjs';
 import {vcard} from './vcard.mjs';
+import {readVcf} from './open-vcf.mjs';
 import {fields as definitions} from './fields.mjs';
 import {zipSync,strToU8} from '/zip.mjs';
 import {translate,UiError} from './ui-language.mjs';
 const $=s=>document.querySelector(s),h=new History(),assets=new Map(),exports=new Map(),selection=new Set(),cardSelection=new Set();
-let active=null,busy=false,controller=null,cancelled=false,exporting=false;
+let active=null,busy=false,controller=null,cancelled=false,exporting=false,openingVcf=false;
 let picker=null,pendingEdit=null,fieldRender=null,pointerDown=false,fieldRenderPending=false;
 const failures=new Map();const outcomes=new Map(); const pendingCards=new Set();
 const awaitingRead=p=>p.cards.some(id=>pendingCards.has(id));
@@ -26,7 +27,7 @@ const staticText=[];
 const staticTitles=[...document.querySelectorAll('[title]')].map(node=>[node,node.title]);
 while(textWalker.nextNode()){
  const node=textWalker.currentNode,key=node.textContent.trim();
- if(!key||node.parentElement.closest('code, option, #status, #selectionCount, #modelStatus'))continue;
+ if(!key||node.parentElement.closest('code, #uiLanguage option, #status, #selectionCount, #modelStatus'))continue;
  staticText.push([node,node.textContent,key]);
 }
 $('#uiLanguage').onchange=event=>{
@@ -36,7 +37,6 @@ $('#uiLanguage').onchange=event=>{
  for(const [node,key] of staticTitles)node.title=t(key);
  $('#status').textContent=statusMessage();
  $('#modelStatus').textContent=modelMessage();
- $('#modeHelp').textContent=modeHelp();
  $('#exportNotice').textContent=exportMessage?.()??'';
  exportFeedback(exportError);
  render();
@@ -81,9 +81,14 @@ function selectionControls(){
  $('#combine').disabled=busy||count<2;
  $('#detach').disabled=busy||!p||p.cards.length<2;
  $('#reviewSelected').disabled=!count||selected().some(awaitingRead);
- $('#retryEdited').disabled=busy||!selected().some(p=>p.cards.some(id=>edited(assets.get(id))));
+ $('#retryEdited').disabled=busy||openingVcf||!selected().some(p=>p.cards.some(id=>edited(assets.get(id))));
  $('#deleteSelected').disabled=busy||!count;
  $('#batch').disabled=busy||!count;
+}
+function inputControls(){
+ $('#openVcf').disabled=busy||openingVcf;
+ $('#extract').disabled=busy||openingVcf;
+ $('#retry').disabled=busy||openingVcf;
 }
 function reviewProblem(p){return !displayName(p)?'Enter a main name before marking reviewed.':p.suggestions.length?'Accept or dismiss extraction suggestions first.':'';}
 function deletePeople(ps){
@@ -118,8 +123,8 @@ function render(){
  for(const id of selection)if(!h.state.some(p=>p.id===id))selection.delete(id);
  for(const id of cardSelection)if(!current()?.cards.includes(id))cardSelection.delete(id);
  const list=$('#people');list.replaceChildren();for(const p of h.state){const row=el('div',undefined,{className:'person'+(p.id===active?' active':'')});const c=el('input',undefined,{type:'checkbox',checked:selection.has(p.id)});c.setAttribute('aria-label',t('Select {0}',displayName(p)||t('Draft')));c.onchange=()=>{c.checked?selection.add(p.id):selection.delete(p.id);selectionControls();};const b=button(displayName(p)||assets.get(p.cards[0])?.name||t('Draft'),()=>{active=p.id;render();});b.append(el('small',t('{0} card(s) · {1}',p.cards.length,t(p.reviewed?'Reviewed':'Needs review'))));if(p.cards.some(id=>outcomes.get(id)==='failed'))b.append(el('small',t('Extraction failed · retry available')));row.append(c,b);list.append(row);}
- $('#undo').disabled=!h.past.length||busy;$('#redo').disabled=!h.future.length||busy;$('#extract').disabled=busy;$('#cancel').disabled=!busy;$('#retry').disabled=busy;$('#combine').disabled=busy;$('#files').disabled=busy;
- selectionControls();renderImages();renderEditor();
+ $('#undo').disabled=!h.past.length||busy;$('#redo').disabled=!h.future.length||busy;$('#cancel').disabled=!busy;$('#files').disabled=busy;
+ inputControls();selectionControls();renderImages();renderEditor();
  const replacement=focusKey&&[...$('#editor').querySelectorAll('[data-focus]')].find(e=>e.dataset.focus===focusKey);
  if(replacement){
   if(draft){replacement.value=typed;pendingEdit={...draft,input:replacement};}
@@ -133,8 +138,9 @@ function render(){
 }
 function renderImages(){
  const pane=$('#images'),p=current();pane.replaceChildren();
- if(!p){pane.append(el('p',t('Add card images to begin.')));return;}
+ if(!p){pane.append(el('p',t('Add card images or open a VCF to begin.')));return;}
  pane.append(el('h2',t('Source cards')));
+ if(!p.cards.length)pane.append(el('p',t('No source images for this contact.')));
  if(p.cards.length>1)pane.append(el('p',t('Tick cards here, then use Detach beside Link.'),{className:'hint'}));
  for(const id of p.cards){
   const a=assets.get(id);if(!a)continue;
@@ -482,7 +488,44 @@ function renderEditor(){
  firstMet.append(firstMetHeading,firstMetFields);
  pane.append(nicknames,notes,firstMet,reviewActions(p));
 }
-$('#files').onchange=async e=>{const cards=[];for(const file of e.target.files){if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>12*1024*1024){status('Use JPEG, PNG or WebP, up to 12 MB per card.');continue;}const id=crypto.randomUUID();const asset={file,url:URL.createObjectURL(file),name:file.name,rotation:0,brightness:100,crop:[0,0,0,0]};asset.lastRead=settings(asset);assets.set(id,asset);cards.push(id);}if(cards.length)change(s=>{for(const id of cards){const p=person(id);s.push(p);selection.add(p.id);active=p.id;}});e.target.value='';};
+function addAsset(file){
+ const id=crypto.randomUUID();
+ const asset={file,url:URL.createObjectURL(file),name:file.name,rotation:0,brightness:100,crop:[0,0,0,0]};
+ asset.lastRead=settings(asset);
+ assets.set(id,asset);
+ return id;
+}
+$('#files').onchange=e=>{const cards=[];for(const file of e.target.files){if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>12*1024*1024){status('Use JPEG, PNG or WebP, up to 12 MB per card.');continue;}cards.push(addAsset(file));}if(cards.length)change(s=>{for(const id of cards){const p=person(id);s.push(p);selection.add(p.id);active=p.id;}});e.target.value='';};
+$('#openVcf').onclick=()=>$('#vcfFile').click();
+$('#vcfFile').onchange=async e=>{
+ const file=e.target.files[0];
+ e.target.value='';
+ if(!file||busy||openingVcf)return;
+ openingVcf=true;inputControls();selectionControls();
+ status('Opening VCF…');
+ try{
+  const bytes=await file.arrayBuffer();
+  let text;
+  try{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}
+  catch{throw new UiError('Choose a VCF file encoded as UTF-8.');}
+  const contacts=readVcf(text);
+  change(state=>{
+   selection.clear();
+   for(const {person:p,photos} of contacts){
+    p.cards=photos.map(addAsset);
+    state.push(p);
+    selection.add(p.id);
+   }
+   active=contacts[0].person.id;
+  });
+  const skipped=contacts.reduce((count,entry)=>count+entry.skippedPhotos,0);
+  status(skipped?'Opened {0} contact(s) for review. Skipped {1} remote or unsupported photo(s). Undo is available.':'Opened {0} contact(s) for review. Undo is available.',contacts.length,skipped);
+ }catch(error){
+  status(error instanceof UiError?error.key:'Could not open this VCF file.');
+ }finally{
+  openingVcf=false;inputControls();selectionControls();
+ }
+};
 $('#all').onclick=()=>{for(const p of h.state)selection.add(p.id);render();};$('#none').onclick=()=>{selection.clear();render();};
 $('#invert').onclick=()=>{for(const p of h.state)selection.has(p.id)?selection.delete(p.id):selection.add(p.id);render();};
 $('#combine').onclick=()=>{if(selected().length<2)return status('Select at least two people to combine.');change(()=>{const ps=selected();active=ps[0].id;h.state=combine(h.state,ps.map(p=>p.id));selection.clear();selection.add(active);});};
@@ -532,7 +575,8 @@ $('#cancel').onclick=()=>{cancelled=true;controller?.abort();status('Cancelling 
 $('#extract').onclick=()=>extract('all');
 async function extract(mode){
  if(!selected().length)return status('Select people to extract.');
- if(busy)return;
+ if(busy||openingVcf)return;
+ if(mode==='all'&&!selected().some(p=>p.cards.length))return status('The selected contacts have no source images to extract.');
  busy=true;cancelled=false;
  const queue=selected().flatMap(p=>p.cards.map(card=>({owner:p.id,card})))
   .filter(task=>mode==='all'||(mode==='edited'?edited(assets.get(task.card)):outcomes.get(task.card)==='failed'));
@@ -589,13 +633,18 @@ function downloadFilename(extension){
  if(/[<>:"/\\|?*\x00-\x1f]/.test(name)||/[. ]$/.test(name)||/^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i.test(name))throw new UiError('Use a valid filename without path separators or Windows reserved names/characters.');
  return name+'.'+extension;
 }
-const modeHelp=()=>t($('#mode').value==='structured'?'For modified Monica. Preserves all jobs, their statuses and linked versions, and contact-method associations. Monica uses each job’s preferred version for its company and title.':'For stock Monica. Uses the primary job’s preferred company and title. Other jobs, linked versions and WeChat IDs are preserved in Notes.');
+const formatHelp=open=>{
+ $('#modeHelp').hidden=!open;
+ $('#toggleFormatHelp').setAttribute('aria-expanded',String(open));
+};
+$('#toggleFormatHelp').onclick=()=>formatHelp($('#modeHelp').hidden);
+$('#exportDialog').addEventListener('close',()=>formatHelp(false));
 function setExportNotice(key,...values){
  exportMessage=key?()=>t(key,...values):null;
  $('#exportNotice').textContent=exportMessage?.()??'';
 }
 function preview(){
- setExportNotice();$('#modeHelp').textContent=modeHelp();
+ setExportNotice();
  $('#goReview').disabled=!selected().some(p=>!p.reviewed||p.suggestions.length);
  $('#selectReviewed').disabled=!h.state.some(p=>p.reviewed&&!p.suggestions.length);
  try{const ps=exportPeople(),filename=downloadFilename('vcf'),cards=ps.flatMap(p=>p.cards);$('#preview').textContent=ps.map(p=>vcard(p,$('#mode').value)).join('\n');exportFeedback();if(exporting)setExportNotice('Preparing download with original images…');else setExportNotice('{0} reviewed contact(s) ready, including {1} original image(s). Download {2} or {3} below.',ps.length,cards.length,filename,downloadFilename('zip'));}
@@ -632,7 +681,7 @@ for(const b of document.querySelectorAll('[data-close]'))b.onclick=()=>b.closest
 $('#showSetup').onclick=()=>$('#setupDialog').showModal();
 const leave=e=>{e.preventDefault();e.returnValue='';};let warned=false;
 function updateWarning(){const dirty=pendingEdit||busy||exporting||h.state.some(p=>p.suggestions.length>0||exports.get(p.uid)!==signature(p));if(dirty&&!warned){window.addEventListener('beforeunload',leave);warned=true;}if(!dirty&&warned){window.removeEventListener('beforeunload',leave);warned=false;}}
-render();status('Ready · model {0}. Add card images to begin.',session.model);
+render();status('Ready · model {0}. Add card images or open a VCF.',session.model);
 
 function setModelMessage(format){
  modelMessage=format;

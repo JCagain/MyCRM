@@ -14,6 +14,7 @@ use function Safe\base64_decode;
 use Intervention\Image\Facades\Image;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use League\Flysystem\UnableToReadFile;
 use Intervention\Image\Exception\NotReadableException;
 
 class UploadPhoto extends BaseService
@@ -45,9 +46,10 @@ class UploadPhoto extends BaseService
      * Upload a photo.
      *
      * @param  array  $data
+     * @param  bool  $reuseExisting  Reuse identical images when the caller holds a contact lock.
      * @return Photo|null
      */
-    public function execute(array $data): ?Photo
+    public function execute(array $data, bool $reuseExisting = false): ?Photo
     {
         $this->validate($data);
 
@@ -60,16 +62,27 @@ class UploadPhoto extends BaseService
         if (Arr::has($data, 'photo')) {
             $array = $this->importPhoto($data);
         } else {
-            $array = $this->importFile($data);
+            $array = $this->importFile($data, $reuseExisting ? $contact : null);
         }
 
+        if ($array instanceof Photo) {
+            return $array;
+        }
         if (! $array) {
             return null;
         }
 
-        return tap(Photo::create($array), function ($photo) use ($contact): void {
+        try {
+            $photo = Photo::create($array);
             $contact->photos()->syncWithoutDetaching([$photo->id]);
-        });
+
+            return $photo;
+        } catch (\Throwable $exception) {
+            if ($reuseExisting) {
+                Storage::delete($array['new_filename']);
+            }
+            throw $exception;
+        }
     }
 
     /**
@@ -96,9 +109,9 @@ class UploadPhoto extends BaseService
     /**
      * Upload the photo.
      *
-     * @return array|null
+     * @return array|Photo|null
      */
-    private function importFile(array $data): ?array
+    private function importFile(array $data, ?Contact $reuseFor = null): array|Photo|null
     {
         $filename = Str::random(40);
 
@@ -109,14 +122,20 @@ class UploadPhoto extends BaseService
         }
 
         $tempfile = $this->storeImage('local', $image, 'temp/'.$filename);
+        if ($tempfile === null) {
+            return null;
+        }
 
         try {
             $storagePath = StorageHelper::disk('local')->path($tempfile);
             // This sets the basePath to get the filesize later
             $image = $image->setFileInfoFromPath($storagePath);
+            if ($reuseFor && ($existing = $this->findMatchingPhoto($reuseFor, $storagePath, $image->filesize()))) {
+                return $existing;
+            }
             $extension = (new \Mimey\MimeTypes)->getExtension($image->mime());
             if (empty($extension)) {
-                $extension = str_replace(' ', '', Arr::get($data, 'extension'));
+                $extension = str_replace(' ', '', Arr::get($data, 'extension') ?? '');
             }
             if (! empty($extension)) {
                 $filename .= '.'.$extension;
@@ -130,6 +149,9 @@ class UploadPhoto extends BaseService
             ];
 
             $array['new_filename'] = $this->storeImage(config('filesystems.default'), $image, 'photos/'.$filename);
+            if ($array['new_filename'] === null) {
+                return null;
+            }
         } finally {
             $storage = Storage::disk('local');
             if ($storage->exists($tempfile)) {
@@ -138,6 +160,38 @@ class UploadPhoto extends BaseService
         }
 
         return $array;
+    }
+
+    private function findMatchingPhoto(Contact $contact, string $path, int $size): ?Photo
+    {
+        $hash = hash_file('sha256', $path);
+        $disk = Storage::disk(config('filesystems.default'));
+        $candidates = $contact->photos()->where('photos.filesize', $size)->orderBy('photos.id')->get();
+
+        foreach ($candidates as $candidate) {
+            try {
+                $stream = $disk->readStream($candidate->new_filename);
+            } catch (UnableToReadFile $exception) {
+                if ($disk->missing($candidate->new_filename)) {
+                    continue;
+                }
+                throw $exception;
+            }
+            if (! is_resource($stream)) {
+                continue;
+            }
+            try {
+                $context = hash_init('sha256');
+                hash_update_stream($context, $stream);
+                if ($hash === hash_final($context)) {
+                    return $candidate;
+                }
+            } finally {
+                fclose($stream);
+            }
+        }
+
+        return null;
     }
 
     /**

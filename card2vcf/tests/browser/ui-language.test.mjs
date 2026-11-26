@@ -23,6 +23,10 @@ async function checkToolbarLayout(page,{add,check,setup,close,selection}){
   expect(checkBox.x-titleBox.x-titleBox.width).toBeCloseTo(6,0);
   expect(helpBox.x-checkBox.x-checkBox.width).toBeCloseTo(6,0);
   expect(toolbarBox.y).toBeGreaterThanOrEqual(headerBox.y+headerBox.height);
+  const [addBox,openBox]=await Promise.all([toolbar.locator('.button').boundingBox(),toolbar.locator('#openVcf').boundingBox()]);
+  expect(addBox.x-toolbarBox.x).toBe(width===390?10:20);
+  expect(openBox.x-addBox.x-addBox.width).toBeCloseTo(8,0);
+  expect(openBox.y+openBox.height/2).toBeCloseTo(addBox.y+addBox.height/2,0);
   const [exportBox,noticeBox]=await Promise.all([toolbar.locator('#export').boundingBox(),toolbar.locator('.notice').boundingBox()]);
   expect(noticeBox.x).toBeGreaterThan(exportBox.x+exportBox.width);
   expect(noticeBox.y).toBeLessThan(exportBox.y+exportBox.height);
@@ -32,8 +36,8 @@ async function checkToolbarLayout(page,{add,check,setup,close,selection}){
   await expect(dividers).toHaveCount(3);
   expect(await dividers.evaluateAll(elements=>elements.map(divider=>{
    const line=divider.getBoundingClientRect(),control=divider.previousElementSibling,button=control.getBoundingClientRect();
-   return [control.id||control.querySelector('input').id,line.left-button.right,line.width,line.height,line.top>=button.top&&line.bottom<=button.bottom];
-  }))).toEqual([['files',8,2,26,true],['cancel',8,2,26,true],['redo',8,2,26,true]]);
+   return [control.id,line.left-button.right,line.width,line.height,line.top>=button.top&&line.bottom<=button.bottom];
+  }))).toEqual([['openVcf',8,2,26,true],['cancel',8,2,26,true],['redo',8,2,26,true]]);
   const alignment=await page.locator('aside>.actions').evaluateAll(rows=>rows.map(row=>getComputedStyle(row).justifyContent));
   expect(alignment).toEqual(['center','center','center','center']);
   const colors=await page.locator('.selection-actions button,#batch').evaluateAll(buttons=>buttons.map(button=>getComputedStyle(button).backgroundColor));
@@ -105,10 +109,14 @@ test('switch UI languages in a working session without navigating or changing co
  await page.locator('#batchDialog [data-close]').click();
  await page.locator('#export').click();
  await expect(page.locator('#mode')).toHaveValue('structured');
+ await expect(page.locator('#mode option:checked')).toHaveText('结构化 vCard（推荐）');
+ await page.getByRole('button',{name:'导出格式帮助'}).click();
  await expect(page.locator('#modeHelp')).toContainText('适用于修改版 Monica');
- await page.locator('#mode').selectOption('monica');
  await expect(page.locator('#modeHelp')).toContainText('适用于标准版 Monica');
+ await page.locator('#mode').selectOption('monica');
+ await expect(page.locator('#mode option:checked')).toHaveText('兼容 Monica');
  await page.locator('#mode').selectOption('structured');
+ await expect(page.getByRole('heading',{name:'vCard 预览（已省略照片）'})).toBeVisible();
  const preview=await page.locator('#preview').textContent();
  expect(preview).toContain('FN:Export');
  await expect(page.locator('#exportNotice')).toContainText('已准备好 1 位');
@@ -118,6 +126,7 @@ test('switch UI languages in a working session without navigating or changing co
  await expect(page.locator('#images img')).toHaveAttribute('style',/rotate\(90deg\)/);
  await expect(page.locator('#selectionCount')).toHaveText('1 person selected');
  await page.locator('#export').click();
+ await expect(page.locator('#modeHelp')).toBeHidden();
  await expect(page.locator('#preview')).toHaveText(preview);
  expect(navigations).toBe(0);
  expect(await page.evaluate(()=>localStorage.length+sessionStorage.length)).toBe(0);

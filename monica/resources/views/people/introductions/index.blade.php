@@ -24,10 +24,17 @@
       </li>
       @endif
 
+      @if ($contact->first_met_where)
+      <li>
+        <i class="fa fa-map-marker"></i>
+        {{ $contact->first_met_where }}
+      </li>
+      @endif
+
       @if ($contact->first_met_additional_info)
       <li>
         <i class="fa fa-id-card-o"></i>
-        {{ $contact->first_met_additional_info }}
+        {!! nl2br(e($contact->first_met_additional_info)) !!}
       </li>
       @endif
     </ul>

@@ -23,8 +23,12 @@ use Illuminate\Validation\Rule;
 use App\Helpers\CountriesHelper;
 use Sabre\VObject\ParseException;
 use Sabre\VObject\Component\VCard;
+use Sabre\VObject\Property\Binary;
 use App\Models\Account\AddressBook;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use League\Flysystem\FilesystemException;
 use App\Models\Contact\ContactField;
 use App\Services\Contact\Tag\DetachTag;
 use App\Models\Contact\ContactFieldType;
@@ -573,11 +577,11 @@ class ImportVCard extends BaseService
         $this->importSocialProfile($contact, $entry);
         $this->importCategories($contact, $entry);
         $this->importNote($contact, $entry);
+        $this->importFirstMet($contact, $entry);
         app(ImportOrganization::class)->fields($contact,$normalized);
-        // A rolled-back card must never create an avatar file.
-        \Illuminate\Support\Facades\DB::afterCommit(function () use ($contact,$entry) {
-            $this->importPhoto($contact, $entry);
-            $contact->save();
+        // A rolled-back card must never create photo files.
+        DB::afterCommit(function () use ($contact, $entry) {
+            $this->importPhotos($contact, $entry);
         });
 
         // Save vcard content
@@ -832,52 +836,70 @@ class ImportVCard extends BaseService
     }
 
     /**
-     * Import photo of the contact.
+     * Import embedded photos of the contact.
      *
      * @param  Contact  $contact
      * @param  VCard  $entry
      * @return void
      */
-    private function importPhoto(Contact $contact, VCard $entry): void
+    private function importPhotos(Contact $contact, VCard $entry): void
     {
-        if ($entry->PHOTO) {
-            if (Str::startsWith((string) $entry->PHOTO, 'https://secure.gravatar.com') || Str::startsWith((string) $entry->PHOTO, 'https://www.gravatar.com')) {
-                // Gravatar
-                $contact->avatar_gravatar_url = (string) $entry->PHOTO;
-            } elseif (! Str::startsWith((string) $entry->PHOTO, 'https://')
-                && ! Str::startsWith((string) $entry->PHOTO, 'http://')
-                && ($contact->avatar_source != 'photo' || empty($contact->avatar_photo_id))) {
-                // Import photo image
-                // Skipping in case a photo avatar is already set
+        $first = (string) $entry->PHOTO;
+        if (Str::startsWith($first, ['https://secure.gravatar.com', 'https://www.gravatar.com'])) {
+            $contact->avatar_gravatar_url = $first;
+            $contact->save();
+        }
 
-                $array = [
-                    'account_id' => $contact->account_id,
-                    'contact_id' => $contact->id,
-                    'data' => (string) $entry->PHOTO,
-                ];
-                if (! is_null($entry->PHOTO['TYPE'])) {
-                    /** @var \Sabre\VObject\Parameter */
-                    $type = $entry->PHOTO['TYPE'];
-                    $array['extension'] = $type->getValue();
-                }
+        foreach ($entry->select('PHOTO') as $property) {
+            $value = (string) $property;
+            if ($property instanceof Binary) {
+                $data = $value;
+            } elseif (strtolower(substr($value, 0, 11)) === 'data:image/') {
+                [$header, $payload] = array_pad(explode(',', $value, 2), 2, '');
+                $payload = rawurldecode($payload);
+                $data = str_ends_with(strtolower($header), ';base64')
+                    ? base64_decode($payload, true)
+                    : $payload;
+            } else {
+                $data = base64_decode($value, true);
+            }
 
-                try {
-                    $photo = app(UploadPhoto::class)
-                        ->execute($array);
-                    if (! $photo) {
+            if ($data === false || $data === '' || ! @getimagesizefromstring($data)) {
+                continue;
+            }
+
+            $photo = null;
+            try {
+                DB::transaction(function () use ($contact, $data, $property, &$photo) {
+                    $current = Contact::whereKey($contact->id)->lockForUpdate()->first();
+                    if (! $current) {
                         return;
                     }
 
-                    app(UpdateAvatar::class)->execute([
-                        'account_id' => $contact->account_id,
-                        'contact_id' => $contact->id,
-                        'source' => 'photo',
-                        'photo_id' => $photo->id,
-                    ]);
-                } catch (ValidationException $e) {
-                    // wrong data
-                    Log::warning('A vCard photo could not be imported.');
+                    $photo = app(UploadPhoto::class)->execute([
+                        'account_id' => $current->account_id,
+                        'contact_id' => $current->id,
+                        'data' => $data,
+                        'extension' => $property['TYPE']?->getValue(),
+                    ], reuseExisting: true);
+
+                    if ($photo && ($current->avatar_source !== 'photo' || empty($current->avatar_photo_id))) {
+                        app(UpdateAvatar::class)->execute([
+                            'account_id' => $current->account_id,
+                            'contact_id' => $current->id,
+                            'source' => 'photo',
+                            'photo_id' => $photo->id,
+                        ]);
+                    }
+                });
+            } catch (\Throwable $exception) {
+                if ($photo?->wasRecentlyCreated) {
+                    Storage::delete($photo->new_filename);
                 }
+                if (! ($exception instanceof ValidationException || $exception instanceof FilesystemException)) {
+                    throw $exception;
+                }
+                Log::warning('A vCard photo could not be imported.');
             }
         }
     }
@@ -1079,6 +1101,59 @@ class ImportVCard extends BaseService
             'account_id' => $contact->account_id,
             'body' => $entry->NOTE,
         ]);
+    }
+
+    private function importFirstMet(Contact $contact, VCard $entry): void
+    {
+        $keys = ['date', 'occasion', 'location', 'notes'];
+        $fields = [];
+        foreach ($keys as $key) {
+            $property = $entry->{'X-C2V-FIRST-MET-'.strtoupper($key)};
+            if ($property !== null) {
+                $fields[$key] = (string) $property;
+            }
+        }
+
+        if ($fields === [] && (string) $entry->VERSION === '4.0' && count($entry->select('NOTE')) === 1
+            && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iD', (string) $entry->UID)) {
+            $note = str_replace(["\r\n", "\r"], "\n", (string) $entry->NOTE);
+            $parts = preg_split('/(?:^|\n)First met (date|occasion|location|notes): /', $note, -1, PREG_SPLIT_DELIM_CAPTURE);
+            $previous = -1;
+            for ($i = 1; $i < count($parts); $i += 2) {
+                $key = $parts[$i];
+                $index = array_search($key, $keys, true);
+                $text = $parts[$i + 1];
+                if ($index <= $previous || trim($text) === '' || ($key !== 'notes' && strpos($text, "\n") !== false)
+                    || ($key === 'date' && ! preg_match('/^\d{4}-\d{2}-\d{2}$/D', $text))) {
+                    return;
+                }
+                $fields[$key] = $text;
+                $previous = $index;
+            }
+        }
+
+        $location = $fields['location'] ?? '';
+        if (trim($location) !== '' && mb_strlen($location) <= 255) {
+            $contact->first_met_where = $location;
+        }
+
+        $information = array_filter([$fields['occasion'] ?? '', $fields['notes'] ?? ''], fn ($text) => trim($text) !== '');
+        if ($information) {
+            $contact->first_met_additional_info = implode("\n", $information);
+        }
+
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/D', $fields['date'] ?? '', $match)) {
+            [, $year, $month, $day] = array_map('intval', $match);
+            if ($year >= 1000 && checkdate($month, $day, $year)) {
+                $date = $contact->firstMetDate()->first();
+                if ($date) {
+                    $date->is_age_based = false;
+                    $date->createFromDate($year, $month, $day);
+                } else {
+                    $contact->setSpecialDate('first_met', $year, $month, $day);
+                }
+            }
+        }
     }
 
     /**

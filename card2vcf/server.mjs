@@ -12,6 +12,10 @@ export function createApp({endpoint=process.env.CARD2VCF_ENDPOINT||'http://127.0
  const target=new URL(endpoint); if(!['127.0.0.1','localhost','[::1]'].includes(target.hostname)||!['http:','https:'].includes(target.protocol)||target.username||target.password||target.search||target.hash)throw Error('Use a loopback model endpoint');
  const token=randomUUID();
  const assets={'/':'public/index.html','/app.mjs':'public/app.mjs','/ui-language.mjs':'public/ui-language.mjs','/domain.mjs':'public/domain.mjs','/contact-metadata.mjs':'public/contact-metadata.mjs','/fields.mjs':'public/fields.mjs','/vcard.mjs':'public/vcard.mjs','/styles.css':'public/styles.css','/opencc.js':'node_modules/opencc-js/dist/umd/full.js','/zip.mjs':'node_modules/fflate/esm/browser.js'};
+ Object.assign(assets,{
+  '/open-vcf.mjs':'public/open-vcf.mjs',
+  '/node_modules/ical.js/dist/ical.js':'node_modules/ical.js/dist/ical.js'
+ });
  return http.createServer(async(req,res)=>{
   const origin=`http://127.0.0.1:${req.socket.localPort}`;
   const headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"};

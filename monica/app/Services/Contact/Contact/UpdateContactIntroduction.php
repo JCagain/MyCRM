@@ -111,7 +111,7 @@ class UpdateContactIntroduction extends BaseService
     private function setInformation(array $data, Contact $contact): void
     {
         $contact->first_met_additional_info = Arr::get($data, 'general_information');
-        $contact->first_met_where = Arr::get($data, 'where');
+        $contact->first_met_where = Arr::get($data, 'where', $contact->first_met_where);
         $contact->save();
     }
 

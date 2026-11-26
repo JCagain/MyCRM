@@ -102,7 +102,16 @@ test('integration controls, metadata history, all downloads and fictional re-ext
   assert.equal(await jobItems.last().getByLabel('Job status').inputValue(),'current');
   await reviews.first().check();await page.locator('#export').click();
   await expect(page.locator('#mode')).toHaveValue('structured');
+  const formatHelp=page.getByRole('button',{name:'Export format help'});
+  await expect(page.locator('#modeHelp')).toBeHidden();
+  await expect(page.locator('#mode option:checked')).toHaveText('Structured vCard (recommended)');
+  await formatHelp.click();
+  await expect(formatHelp).toHaveAttribute('aria-expanded','true');
+  await expect(page.locator('#modeHelp')).toBeVisible();
   await expect(page.locator('#modeHelp')).toContainText('For modified Monica');
+  await expect(page.locator('#modeHelp')).toContainText('For stock Monica');
+  await formatHelp.click();
+  await expect(page.locator('#modeHelp')).toBeHidden();
   const downloads=new Map();
   for(const mode of ['monica','structured'])for(const zip of [false,true]){
    await page.locator('#mode').selectOption(mode);const saving=page.waitForEvent('download');await page.locator(zip?'#individual':'#combined').click();const bytes=await readFile(await(await saving).path());

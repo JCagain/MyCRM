@@ -47,7 +47,6 @@
                       'url2' => 'http://www.akruto.com/backup-phone-contacts-calendar/how-to-export-google-contacts-to-csv-or-vcard/'
                     ]) !!}</li>
                     <li>{{ trans('settings.import_upload_rule_multiple') }}</li>
-                    <li>{{ trans('settings.import_upload_rule_limit') }}</li>
                     <li>{{ trans('settings.import_upload_rule_time') }}</li>
                     <li>{{ trans('settings.import_upload_rule_cant_revert') }}</li>
                 </ul>
@@ -60,8 +59,8 @@
 
                   <div class="form-group">
                       <label for="vcard">{!! trans('settings.import_upload_form_file') !!}</label>
-                      <input type="file" class="form-control-file" name="vcard" id="vcard">
-                      <small id="fileHelp" class="form-text text-muted">{{ trans('people.information_edit_max_size', ['size' => config('monica.max_upload_size')]) }}</small>
+                      <input type="file" class="form-control-file" name="vcard" id="vcard" aria-describedby="fileHelp">
+                      <small id="fileHelp" class="form-text text-muted">{{ trans('settings.import_upload_max_file_size', ['size' => config('monica.vcard_import_max_size_mib')]) }}</small>
                   </div>
 
                 <div class="form-group">

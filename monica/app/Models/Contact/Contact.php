@@ -1294,7 +1294,8 @@ class Contact extends Model
      */
     public function hasFirstMetInformation()
     {
-        return ! is_null($this->first_met_additional_info) || ! is_null($this->firstMetDate) || ! is_null($this->first_met_through_contact_id);
+        return ! is_null($this->first_met_additional_info) || ! is_null($this->first_met_where)
+            || ! is_null($this->firstMetDate) || ! is_null($this->first_met_through_contact_id);
     }
 
     /**

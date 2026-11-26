@@ -310,6 +310,8 @@ return [
     'import_report_title' => '匯入報表',
     'import_report_date' => '匯入日期',
     'import_report_type' => '匯入型別',
+    'import_report_filename' => '檔案名稱',
+    'import_upload_max_file_size' => '最大檔案大小：:size MiB。',
     'import_report_number_contacts' => '檔案中的聯絡人數',
     'import_report_number_contacts_imported' => '匯入的聯絡人數量',
     'import_report_number_contacts_skipped' => '跳過的聯絡人數',

@@ -311,6 +311,8 @@ return [
     'import_report_title' => 'Importing report',
     'import_report_date' => 'Date of the import',
     'import_report_type' => 'Type of import',
+    'import_report_filename' => 'Filename',
+    'import_upload_max_file_size' => 'Maximum file size: :size MiB.',
     'import_report_number_contacts' => 'Number of contacts in the file',
     'import_report_number_contacts_imported' => 'Number of imported contacts',
     'import_report_number_contacts_skipped' => 'Number of skipped contacts',

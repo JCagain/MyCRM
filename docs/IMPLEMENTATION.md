@@ -1,6 +1,6 @@
 # Implementation record
 
-Updated: 2026-11-24. Maintenance rules: [AGENTS.md](../AGENTS.md).
+Updated: 2026-11-26. Maintenance rules: [AGENTS.md](../AGENTS.md).
 
 ## Status
 
@@ -13,7 +13,19 @@ Repairs for the seven findings from the 2026-11-18 implementation review are in 
 | C2V people sidebar | Matched the [approved stacked demo](../stacked-link-with-demo.html) in the live app | [Workflow test](../card2vcf/tests/browser/workflow.test.mjs) verifies control labels, row placement, and the 16 px selection count. All 7 Edge browser tests passed, including layout checks at 1440, 1100, 800, and 390 px. |
 | [card2vcf integration scope](../card2vcf/SPEC.md#integration-with-modified-monica) | Converter implemented; actual downloads verified through the modified importer | [Converter handoff](../card2vcf/INTEGRATION-PLAN.md#verification-and-importer-handoff), [application integration tests](../monica/tests/Feature/OrganizationTest.php), [committed-photo check](../monica/tests/Browser/committed-import.php). Converter baseline committed in `2546ace`. |
 | [Monica modification specification](MONICA-SPEC.md) | Implemented and verified | [Plan](MONICA-PLAN.md), [pinned source](../monica/UPSTREAM.md), [reproducible verification](MONICA-RUNBOOK.md). The user approved metadata-only access; no real contact records or card files were inspected. |
-| [Local deployment configuration](../compose.yaml) | Verified repair image deployed to the local instance on 2026-11-18 | [Prepared override](../deploy/monica/compose.organization.yaml), [deployment/recovery runbook](MONICA-RUNBOOK.md). [Live deployment verification](#live-deployment) |
+| [Local deployment configuration](../compose.yaml) | Verified repair image deployed to the local instance on 2026-11-18 | [Prepared override](../deploy/monica/compose.organization.yaml), [daily startup](MONICA-RUNBOOK.md#start-and-open-monica), [deployment/recovery runbook](MONICA-RUNBOOK.md). [Live deployment verification](#live-deployment) |
+
+## card2vcf Open VCF
+
+Click **Open VCF** in the toolbar and select a UTF-8 vCard 3.0 or 4.0 file. The app opens single-contact and combined VCFs in either interface language. It adds the contacts with new session identities, selects the imported batch and opens the first contact for editing. Review the contacts before exporting. **Undo** removes the batch in one step and **Redo** restores it. A malformed or unsupported file leaves the current session intact.
+
+Import runs in the browser without the extraction model. It reads names, nicknames, jobs, addresses, supported contact methods, notes, and embedded JPEG, PNG and WebP photos. Structured exports restore the primary job, job statuses, linked job and address variants, and WhatsApp phone associations defined in the [wire contract](../card2vcf/INTEGRATION-PLAN.md#wire-contract). Additional jobs in Monica compatible exports stay in Notes. Remote and unsupported photos are skipped and counted in the status message.
+
+The [First met amendment](FIRST-MET-AMENDMENT.md) is implemented in Card2VCF and Monica. The [converter round-trip tests](../card2vcf/tests/open-vcf.test.mjs) and [Monica import tests](../monica/tests/Feature/OrganizationTest.php) cover new and older exports.
+
+Verified on 2026-11-24 with 36 converter unit tests, 10 Edge tests and 125 Monica PHP tests (470 assertions). The committed import and Monica browser checks also passed. The fictional Compose environment now mounts the current Laravel configuration and translations alongside the views to prevent stale image files from affecting verification.
+
+The [import tests](../card2vcf/tests/open-vcf.test.mjs) cover both export formats, a vCard 3.0 fixture, and invalid input. The [Edge test](../card2vcf/tests/browser/open-vcf.test.mjs) covers the file picker, editing, Undo and Redo, language switching, and re-export with the original photo bytes.
 
 ## card2vcf source editing and review during extraction
 
@@ -28,6 +40,10 @@ Verified with 32 unit tests and 9 Edge browser tests. The [source editing test](
 ## card2vcf primary job and export
 
 Implemented the [primary job and export amendment](../card2vcf/SPEC.md#amendment-to-primary-job-selection-and-export-defaults) in both interface languages. All 32 unit tests and 8 Edge browser tests passed. The [metadata test](../card2vcf/tests/contact-metadata.test.mjs) covers independent job and version order through Undo and Redo. The [Edge integration test](../card2vcf/tests/browser/integration.test.mjs) covers the editor controls, the default format and the exported job data in both formats. The [language test](../card2vcf/tests/browser/ui-language.test.mjs) checks the localized export guidance.
+
+## card2vcf export dialog
+
+Click **?** beside **Format** to compare **Structured vCard (recommended)** and **Monica compatible**. The vCard preview label indicates that photos are omitted from the preview. The [export rules](../card2vcf/SPEC.md#amendment-to-primary-job-selection-and-export-defaults) define the format behavior. The [Edge integration test](../card2vcf/tests/browser/integration.test.mjs) covers the help toggle and both downloads. The [language test](../card2vcf/tests/browser/ui-language.test.mjs) covers the localized help, options and preview label.
 
 ## card2vcf interface language
 
@@ -47,9 +63,17 @@ The [Edge workflow test](../card2vcf/tests/browser/workflow.test.mjs) checks the
 
 The header places Check model and a **?** help button beside the app name. It also displays the model reachability status and language control. The help button opens the PowerShell setup instructions in a dialog. The card toolbar sits below the header. The left-panel action rows and selection count are centered. Select all, Clear, and Invert selection share a light blue background.
 
-The [Edge language test](../card2vcf/tests/browser/ui-language.test.mjs) verifies the layout in English and Simplified Chinese at 1440 and 390 px.
+**Add cards** and **Open VCF** form the leftmost group, with Add cards first and the divider after Open VCF. The [Edge language test](../card2vcf/tests/browser/ui-language.test.mjs) checks the layout in English and Simplified Chinese at 1440 and 390 px.
 
 ## Local demo changes
+
+- The people-list demo displays the primary job in separate Company and Title columns. Search matches either field or the contact name. Verified in Edge at 1440 and 390 px, including a missing job title and a company filter that matches a secondary membership.
+
+- In `people-layout-demo.html`, Filters and Bulk actions start collapsed. The toolbar and table share horizontal padding, and contact rows use smaller avatars and tighter spacing. Verified the initial state, toolbar alignment, filtering and selection in Edge at 1440, 1024, 390 and 320 px.
+
+- The work-focused contact demo shows every saved contact method on its own labeled row and puts tag assignment and removal in the name bar. The people-list demo places independently foldable Filters and Bulk actions below the contact count and search controls. Verified both local demos in Edge at 1440, 390 and 320 px, including tag editing and preservation of filters and selection when folding.
+
+- On 2026-11-26, created the standalone `contact-page-work-demo.html` from the fictional contact snapshot. The demo promotes contact methods, addresses and jobs, places First met directly before Activities, and folds personal details. Amber highlights identify proposed same-company contacts and the cooperation partner relationship type. Verified offline in Edge at 1440, 390 and 320 px, including adding a website, linking contacts and preventing duplicate relationships.
 
 - On 2026-11-19, the local `stacked-same-job-demo.html` moved the selection count directly below the selection controls and placed **Mark reviewed** and **Delete** on one row above **Set first met**. The contact review checkboxes read **Reviewed**, and the job dropdowns read **Status**. Verified in Edge at 1440 px and 390 px viewport widths.
 
@@ -86,6 +110,20 @@ Implementation choices beyond the requirement text: pending company-review paylo
 Direct compatibility fixes: an unchanged matched contact now remains the Replace target instead of creating a duplicate; name fallback now consumes parsed names and treats empty/NULL optional components consistently. UID → email → name precedence and first-match/Add-skip policy remain as specified. Company deletion repairs primary work references; legacy work/occupation edits are transactional. Avatar/file processing begins only after the contact graph commits.
 
 The repair adds two outcomes to the import workflow. When structured Replace cannot associate imported work with a unique existing employment record, it rejects that card with instructions to reconcile the matching jobs. When a user resolves a company match from an upload, the original report and its counters reflect the result. The report offers review links only while a review is active and belongs to the signed-in user. [Repair plan](REPAIR-PLAN.md) · [Regression tests](../monica/tests/Feature/OrganizationTest.php)
+
+### vCard import filenames and upload size
+
+Settings → Import shows the original filename for new vCard uploads in both the history and the report. The `import:vcard` command records the source basename for the same history. The [additive migration](../monica/database/migrations/2026_11_23_000001_add_original_filename_to_import_jobs.php) leaves the original filename empty for older jobs.
+
+The vCard form and server validation share a 256 MiB limit for files with embedded photos. The Docker image already accepts up to 512 MiB in PHP and 1 GiB in Apache. The [upgrade procedure](MONICA-RUNBOOK.md#later-upgrade-procedure) applies the new migration.
+
+Verified in the fictional deployment on 2026-11-23. The [PHP suite](../monica/phpunit.organization.xml) and [CLI import tests](../monica/tests/Commands/Other/ImportVCardsTest.php) passed 126 tests combined. The [Edge test](../deploy/monica/browser.mjs) uploaded a photo-filled vCard over 10 MiB and confirmed the filename in the history and report. The live deployment is pending.
+
+### Multiple embedded vCard photos
+
+Monica saves distinct, supported embedded images from a vCard in the contact’s Photos after the contact import commits. If the contact has no photo avatar, Monica uses the first usable image. Existing photos stay available when the user switches avatars. On reimport, Monica reuses identical attached images. Invalid images and external links are skipped for photo attachments. The card2vcf export help describes the updated importer in both interface languages.
+
+The [committed import check](../monica/tests/Browser/committed-import.php) passed with fictional vCard 3.0 and 4.0 photos. It checks the stored image, avatar selection, repeated Replace, and rejected-card isolation. All 123 compatibility tests, the [large upload browser check](../deploy/monica/browser.mjs), and the [export language test](../card2vcf/tests/browser/ui-language.test.mjs) passed. The live deployment is pending.
 
 ## Direct card2vcf changes beyond the specification
 
@@ -133,6 +171,8 @@ Check model performs a separate short request for the model list and checks the 
 Evidence: [server](../card2vcf/server.mjs), [connection-check tests](../card2vcf/tests/server.test.mjs). Dependencies and test commands: [package manifest](../card2vcf/package.json).
 
 ## Live deployment
+
+On 2026-11-24 the local instance restarted with the [First met amendment](FIRST-MET-AMENDMENT.md). The installed importer matched the tested source. The confirmed live reset cleared user content and storage, verified every login email and password hash before committing, and restored default account settings. Post-start checks confirmed empty contact, photo, document and import tables and an HTTP 200 login form.
 
 The local Monica instance at `http://localhost:8080` was upgraded from the stock image using the repaired build from commit `9c70157`. The database and storage backups were restored and upgraded successfully in isolated volumes first. Both organization migrations and the backfill completed on the live database. The running image matched the verified candidate below and the login page returned HTTP 200. Verification used migration metadata and the login endpoint. Real-contact verification remains with the user. The backup location and recovery details are recorded privately.
 

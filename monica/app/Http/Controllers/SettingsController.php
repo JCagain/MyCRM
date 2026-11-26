@@ -202,12 +202,14 @@ class SettingsController extends Controller
 
     public function storeImport(ImportsRequest $request)
     {
-        $filename = $request->file('vcard')->store('imports', config('filesystems.default'));
+        $file = $request->file('vcard');
+        $filename = $file->store('imports', config('filesystems.default'));
 
         $importJob = auth()->user()->account->importjobs()->create([
             'user_id' => auth()->user()->id,
             'type' => 'vcard',
             'filename' => $filename,
+            'original_filename' => $file->getClientOriginalName(),
         ]);
 
         AddContactFromVCard::dispatch($importJob, $request->input('behaviour'));

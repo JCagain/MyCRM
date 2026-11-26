@@ -48,6 +48,11 @@ class ImportVCardsTest extends TestCase
             ->assertSuccessful()
             ->run();
 
+        $this->assertDatabaseHas('import_jobs', [
+            'account_id' => $user->account_id,
+            'original_filename' => 'vcard_stub.vcf',
+        ]);
+
         $this->assertDatabaseHas('contacts', [
             'first_name' => 'John',
             'last_name' => 'Doe',

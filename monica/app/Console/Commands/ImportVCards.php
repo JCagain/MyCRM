@@ -84,12 +84,14 @@ class ImportVCards extends Command
 
     private function import(string $path, User $user): ImportJob
     {
-        $pathName = Storage::putFile('public', new File($path));
+        $file = new File($path);
+        $pathName = Storage::putFile('public', $file);
 
         $importJob = $user->account->importjobs()->create([
             'user_id' => $user->id,
             'type' => 'vcard',
             'filename' => $pathName,
+            'original_filename' => $file->getFilename(),
         ]);
 
         AddContactFromVCard::dispatchSync($importJob);
